@@ -115,9 +115,28 @@ def atualizar_nota(submission_id, nota) -> bool:
                 (valor, str(submission_id)),
             )
             con.commit()
+        _push_nota(submission_id, valor)
         return True
     except Exception:
         return False
+
+
+def _push_nota(submission_id, score) -> None:
+    """Envia a nota atualizada para o Supabase em background."""
+    import threading
+
+    def _enviar():
+        try:
+            from core import sync
+            cli = sync.cliente()
+            cli.table("student_assessments").upsert({
+                "id": str(submission_id),
+                "score": score,
+            }).execute()
+        except Exception:
+            pass
+
+    threading.Thread(target=_enviar, daemon=True).start()
 
 
 def _letra(indice: int | None) -> str:

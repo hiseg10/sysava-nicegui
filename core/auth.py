@@ -172,12 +172,33 @@ def registrar_atividade(username: str | None, atividade: str) -> None:
     """Grava uma linha em `user_history` (best-effort; nunca quebra a página)."""
     if not username:
         return
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         with db.abrir(somente_leitura=False) as con:
             con.execute(
                 "INSERT INTO user_history (username, activity, timestamp) VALUES (?, ?, ?)",
-                (username, atividade, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                (username, atividade, ts),
             )
             con.commit()
     except Exception as erro:
         log.warning("Não foi possível registrar atividade: %s", erro)
+    _push_user_history(username, atividade, ts)
+
+
+def _push_user_history(username: str, activity: str, timestamp: str) -> None:
+    """Envia o registro para o Supabase em background."""
+    import threading
+
+    def _enviar():
+        try:
+            from core import sync
+            cli = sync.cliente()
+            cli.table("user_history").upsert({
+                "username": username,
+                "activity": activity,
+                "timestamp": timestamp,
+            }).execute()
+        except Exception:
+            pass
+
+    threading.Thread(target=_enviar, daemon=True).start()

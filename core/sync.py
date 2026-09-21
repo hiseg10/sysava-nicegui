@@ -844,3 +844,12 @@ def sincronizar(
         1.0,
     )
     return resumo
+
+
+# --------------------------------------------------------------------------
+# Push sync (SQLite → Supabase)
+# --------------------------------------------------------------------------
+def push_para_supabase(progresso: Progresso | None = None) -> dict:
+    """Envia dados locais do SQLite de volta para o Supabase."""
+    from core import push_sync
+    return push_sync.push_tudo(progresso=progresso)

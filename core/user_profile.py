@@ -117,9 +117,28 @@ def salvar_perfil(username: str, *, bio: str = None, avatar_url: str = None,
                  dados["idioma"], dados["prefs"], dados["atualizado_em"]),
             )
             con.commit()
+        _push_perfil(username, dados)
         return True
     except Exception:
         return False
+
+
+def _push_perfil(username: str, dados: dict) -> None:
+    """Envia o perfil atualizado para o Supabase em background."""
+    import threading
+
+    def _enviar():
+        try:
+            from core import sync
+            cli = sync.cliente()
+            cli.table("user_profiles").upsert({
+                "username": username,
+                **dados,
+            }).execute()
+        except Exception:
+            pass
+
+    threading.Thread(target=_enviar, daemon=True).start()
 
 
 # --------------------------------------------------------------------------

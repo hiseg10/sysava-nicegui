@@ -179,7 +179,44 @@ def salvar_chamada(
 
         con.commit()
 
+    _push_attendance(registros, class_name, data, chave_subject, professor, agora)
+
     return {"inseridos": inseridos, "atualizados": atualizados, "total": len(registros)}
+
+
+def _push_attendance(registros, class_name, data, subject_id, professor, timestamp) -> None:
+    """Envia registros de chamada para o Supabase em background."""
+    import threading
+
+    def _enviar():
+        try:
+            from core import sync
+            cli = sync.cliente()
+            linhas = []
+            for reg in registros:
+                nome = reg.get("student_name")
+                if not nome:
+                    continue
+                status = reg.get("status") or STATUS_PRESENTE
+                presente = _presente(status)
+                linhas.append({
+                    "id": uuid.uuid4().hex,
+                    "student_name": nome,
+                    "student_number": str(reg.get("student_number", "")),
+                    "is_present": str(presente),
+                    "class_name": class_name,
+                    "date": data,
+                    "professor_name": professor,
+                    "created_at": timestamp,
+                    "subject_id": subject_id,
+                    "status": status,
+                })
+            if linhas:
+                cli.table("attendance").upsert(linhas).execute()
+        except Exception:
+            pass
+
+    threading.Thread(target=_enviar, daemon=True).start()
 
 
 # --------------------------------------------------------------------------

@@ -9,8 +9,28 @@ from __future__ import annotations
 from datetime import datetime
 from nicegui import ui, app
 
-from core import db, repositories as repo
+from core import db, repositories as repo, push_sync
 from ui import layout, security
+
+
+def _push_forum_post(username: str, message: str, lesson_id: int | None) -> None:
+    """Envia o post para o Supabase em background."""
+    import threading
+
+    def _enviar():
+        try:
+            from core import sync
+            cli = sync.cliente()
+            cli.table("forum_posts").upsert({
+                "user_name": username,
+                "message": message,
+                "lesson_id": lesson_id,
+                "created_at": datetime.now().isoformat(),
+            }).execute()
+        except Exception:
+            pass  # falha silenciosa — dados já estão no SQLite
+
+    threading.Thread(target=_enviar, daemon=True).start()
 
 
 @ui.page("/forum")
@@ -54,6 +74,7 @@ def forum_page(client):
                         (username, mensagem.value, lesson_id, datetime.now().isoformat()),
                     )
                     con.commit()
+                _push_forum_post(username, mensagem.value, lesson_id)
                 ui.notify("Mensagem enviada com sucesso!", type="positive")
                 mensagem.value = ""
                 ui.reload()

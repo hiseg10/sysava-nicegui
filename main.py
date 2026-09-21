@@ -105,6 +105,21 @@ def _sync_inicial():
 app.on_startup(lambda: threading.Thread(target=_sync_inicial, daemon=True).start())
 
 
+def _push_ao_sair():
+    """Envia dados locais de volta para o Supabase ao encerrar."""
+    try:
+        log.info("Enviando dados locais para o Supabase...")
+        resultado = sync.push_para_supabase()
+        total = (resultado or {}).get("total_enviados", 0)
+        erros = (resultado or {}).get("total_erros", 0)
+        log.info("Push concluído: %s enviado(s), %s erro(s)", total, erros)
+    except Exception as erro:
+        log.warning("Push ao sair falhou: %s", erro)
+
+
+app.on_shutdown(_push_ao_sair)
+
+
 @ui.page("/")
 def home():
     """Encaminha para a página inicial do papel do usuário."""

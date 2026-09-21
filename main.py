@@ -1,0 +1,129 @@
+"""
+Ponto de entrada do SysAVA (NiceGUI).
+
+Registra as páginas, instala o middleware de autenticação, trata erros globais
+e sobe o servidor com sessão persistente (`storage_secret`).
+"""
+
+import os
+from nicegui import app, ui
+
+from core import auth, logs, repositories
+from ui import layout, security
+
+logs.configurar()
+security.instalar()
+
+# O decorador @ui.page, executado na importação, é o que registra cada rota.
+from ui import aluno as aluno_view
+from ui import aulas as aulas_view
+from ui import config as config_view
+from ui import database as database_view
+from ui import frequencia as frequencia_view
+from ui import friction as friction_view
+from ui import forum as forum_view
+from ui import login as login_view
+from ui import manage_turmas as manage_turmas_view
+from ui import pontos as pontos_view
+from ui import perfil as perfil_view
+from ui import provas as provas_view
+from ui import quiz as quiz_view
+from ui import sync as sync_view
+
+_ = (
+    aluno_view,
+    aulas_view,
+    config_view,
+    database_view,
+    frequencia_view,
+    friction_view,
+    forum_view,
+    login_view,
+    manage_turmas_view,
+    pontos_view,
+    perfil_view,
+    provas_view,
+    quiz_view,
+    sync_view,
+)
+
+ROTULOS_CONTAGEM = {
+    "app_users": "Usuários",
+    "classes": "Turmas",
+    "subjects": "Disciplinas",
+    "lessons": "Aulas",
+    "quizzes": "Quizzes",
+    "quiz_questions": "Questões de quiz",
+    "assessments": "Avaliações",
+    "assessment_questions": "Questões de prova",
+    "attendance": "Frequência",
+    "student_enrollments": "Matrículas",
+    "student_grades": "Notas",
+    "forum_posts": "Posts no fórum",
+}
+
+
+def _pagina_erro(erro: Exception | None = None) -> None:
+    """Página de erro exibida quando uma rota falha ao montar."""
+    logs.registrar_excecao(erro, contexto="página")
+    layout.inicio_pagina("Erro", "Não foi possível carregar esta página.")
+    with ui.column().classes("q-pa-md items-center gap-2"):
+        ui.icon("error", color="negative").classes("text-5xl")
+        ui.label("Ocorreu um erro inesperado.").classes("text-h6")
+        ui.label(str(erro) if erro else "").classes("text-grey-7 text-center max-w-2xl")
+        ui.button("Voltar ao início", icon="home", on_click=lambda: ui.navigate.to("/"))
+
+
+app.on_page_exception(_pagina_erro)
+app.on_exception(lambda erro=None: logs.registrar_excecao(erro, contexto="evento"))
+
+
+@ui.page("/")
+def home():
+    """Encaminha para a página inicial do papel do usuário."""
+    ui.navigate.to(auth.rota_inicial(security.papel_atual()))
+
+
+@ui.page("/dashboard")
+def dashboard():
+    layout.inicio_pagina(
+        "Dashboard",
+        "Visão geral do SysAVA.",
+        ativo="/dashboard",
+    )
+
+    contagens = repositories.contagens_gerais()
+    with ui.row().classes("gap-3 q-mt-sm flex-wrap"):
+        for chave in ("app_users", "classes", "subjects", "lessons", "attendance"):
+            with ui.card().classes("items-center q-pa-md min-w-32"):
+                ui.label(str(contagens.get(chave, 0))).classes("text-h5")
+                ui.label(ROTULOS_CONTAGEM.get(chave, chave)).classes(
+                    "text-caption text-grey-7 text-center"
+                )
+
+    with ui.row().classes("items-center gap-2 q-mt-md"):
+        ui.button("Gerenciar Turmas", icon="groups", on_click=lambda: ui.navigate.to("/manage-turmas"))
+        ui.button("Frequência", icon="checklist", on_click=lambda: ui.navigate.to("/frequencia"))
+        ui.button("Radar de Atrito", icon="radar", on_click=lambda: ui.navigate.to("/radar"))
+        ui.button("Sincronização", icon="cloud_sync", on_click=lambda: ui.navigate.to("/sync"))
+
+    linhas = [
+        {"tabela": ROTULOS_CONTAGEM.get(nome, nome), "registros": total}
+        for nome, total in contagens.items()
+    ]
+    colunas = [
+        {"name": "tabela", "label": "Tabela", "field": "tabela", "align": "left", "sortable": True},
+        {"name": "registros", "label": "Registros", "field": "registros", "align": "right", "sortable": True},
+    ]
+    ui.table(columns=colunas, rows=linhas, row_key="tabela", pagination=15) \
+        .classes("w-full max-w-3xl q-mt-md").props("dense flat bordered")
+
+
+if __name__ == "__main__":
+    ui.run(
+        port=int(os.environ.get("PORT", 8080)),
+        host="0.0.0.0",
+        reload=False,
+        storage_secret=auth.storage_secret(),
+        title="SysAVA",
+    )

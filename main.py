@@ -83,23 +83,41 @@ app.on_exception(lambda erro=None: logs.registrar_excecao(erro, contexto="evento
 
 
 def _sync_inicial():
-    """Faz sync completo do Supabase ao iniciar (banco vazio no Render free)."""
+    """Sync do Supabase ao iniciar.
+
+    - Se o banco local já tem dados, pula o sync (modo local / run.bat).
+    - Se está vazio (Render free), faz sync completo.
+    - Sempre re-executa migrações de colunas locais ao final.
+    """
     try:
-        info = sync.descrever_conexao()
-        if not info.get("configurado"):
-            log.warning("Supabase não configurado — sync inicial ignorado.")
-            return
-        log.info("Iniciando sync completo do Supabase...")
-        resultado = sync.sincronizar(modo="full", backup=False)
-        totais = (resultado or {}).get("totais") or {}
-        log.info(
-            "Sync inicial concluído: +%s / ~%s / %s erro(s)",
-            totais.get("inseridos", 0),
-            totais.get("atualizados", 0),
-            totais.get("erros", 0),
-        )
+        # Verifica se o banco local já possui dados
+        banco_cheio = False
+        try:
+            from core import db
+            with db.abrir() as con:
+                total = con.execute("SELECT COUNT(*) FROM app_users").fetchone()[0]
+                banco_cheio = total > 0
+        except Exception:
+            pass  # tabela não existe ou banco vazio
+
+        if banco_cheio:
+            log.info("Banco local já possui dados — sync inicial ignorado.")
+        else:
+            info = sync.descrever_conexao()
+            if not info.get("configurado"):
+                log.warning("Supabase não configurado — sync inicial ignorado.")
+            else:
+                log.info("Banco vazio — iniciando sync completo do Supabase...")
+                resultado = sync.sincronizar(modo="full", backup=False)
+                totais = (resultado or {}).get("totais") or {}
+                log.info(
+                    "Sync inicial concluído: +%s / ~%s / %s erro(s)",
+                    totais.get("inseridos", 0),
+                    totais.get("atualizados", 0),
+                    totais.get("erros", 0),
+                )
+
         # Re-executa migrações de colunas que só existem localmente
-        # (a tabela foi criada pelo sync a partir do schema remoto).
         from core.turmas import _ensure_columns
         _ensure_columns()
     except Exception as erro:

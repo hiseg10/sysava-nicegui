@@ -11,11 +11,8 @@ import threading
 
 from nicegui import app, ui
 
-from core import auth, logs, repositories, sync
+from core import auth, logs, repositories, state, sync
 from ui import layout, security
-
-# Sinaliza quando o sync inicial terminou (login/queries ficam indisponíveis até lá).
-sync_pronta = threading.Event()
 
 logs.configurar()
 security.instalar()
@@ -108,7 +105,7 @@ def _sync_inicial():
     except Exception as erro:
         log.warning("Sync inicial falhou: %s", erro)
     finally:
-        sync_pronta.set()
+        state.sync_pronta.set()
 
 
 app.on_startup(lambda: threading.Thread(target=_sync_inicial, daemon=True).start())
@@ -137,7 +134,7 @@ def syncing_page():
         ui.spinner(size="xl", color="primary")
         ui.label("Sincronizando dados com o servidor...").classes("text-h6 q-mt-md text-grey-7")
         ui.label("Isso leva alguns segundos no primeiro acesso.").classes("text-caption text-grey-6")
-        ui.timer(2.0, lambda: ui.navigate.to("/syncing") if not sync_pronta.is_set() else ui.navigate.to("/login"))
+        ui.timer(2.0, lambda: ui.navigate.to("/syncing") if not state.sync_pronta.is_set() else ui.navigate.to("/login"))
 
 
 @ui.page("/")

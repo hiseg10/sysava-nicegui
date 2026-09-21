@@ -13,7 +13,7 @@ from nicegui import app, ui
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 
-from core import auth
+from core import auth, state
 
 CAMINHO_LOGIN = "/login"
 PREFIXO_INTERNO = "/_nicegui"
@@ -97,8 +97,7 @@ class MiddlewareAutenticacao(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Enquanto o sync inicial não termina, redireciona para /syncing
-        from main import sync_pronta
-        if not sync_pronta.is_set():
+        if not state.sync_pronta.is_set():
             if caminho != "/syncing":
                 return RedirectResponse("/syncing")
             return await call_next(request)

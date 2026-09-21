@@ -14,7 +14,7 @@ from ui import layout, security
 
 
 @ui.page("/quiz")
-def quiz_page(client):
+def quiz_page(request):
     usuario = security.usuario_atual() or {}
     username = usuario.get("username")
     staff = usuario.get("role") in (auth.PAPEL_ADMIN, auth.PAPEL_PROFESSOR)
@@ -29,7 +29,7 @@ def quiz_page(client):
         ui.label("Você precisa estar logado para acessar o quiz.").classes("text-grey-7")
         return
 
-    lesson_id_str = client.request.query_params.get("lesson_id")
+    lesson_id_str = request.query_params.get("lesson_id")
     if not lesson_id_str:
         ui.label("Nenhuma aula selecionada. Volte para a página de aulas.").classes("text-grey-7")
         ui.button("📚 Voltar para as Aulas", on_click=lambda: ui.navigate.to("/aulas")).classes("q-mt-md")

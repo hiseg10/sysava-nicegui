@@ -181,7 +181,7 @@ def navegacao(ativo: str | None = None) -> None:
         ).props("flat color=white round").classes("q-mr-sm")
         theme_btn.on("click", lambda: _toggle_dark(theme_btn))
 
-        _montar_acesso_rapido()
+        _montar_acesso_rapido() if usuario else None
 
         if usuario:
             _menu_usuario(usuario)

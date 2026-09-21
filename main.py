@@ -5,14 +5,18 @@ Registra as páginas, instala o middleware de autenticação, trata erros globai
 e sobe o servidor com sessão persistente (`storage_secret`).
 """
 
+import logging
 import os
+import threading
+
 from nicegui import app, ui
 
-from core import auth, logs, repositories
+from core import auth, logs, repositories, sync
 from ui import layout, security
 
 logs.configurar()
 security.instalar()
+log = logging.getLogger("sysava.startup")
 
 # O decorador @ui.page, executado na importação, é o que registra cada rota.
 from ui import aluno as aluno_view
@@ -76,6 +80,29 @@ def _pagina_erro(erro: Exception | None = None) -> None:
 
 app.on_page_exception(_pagina_erro)
 app.on_exception(lambda erro=None: logs.registrar_excecao(erro, contexto="evento"))
+
+
+def _sync_inicial():
+    """Faz sync completo do Supabase ao iniciar (banco vazio no Render free)."""
+    try:
+        info = sync.descrever_conexao()
+        if not info.get("configurado"):
+            log.warning("Supabase não configurado — sync inicial ignorado.")
+            return
+        log.info("Iniciando sync completo do Supabase...")
+        resultado = sync.sincronizar(modo="full", backup=False)
+        totais = (resultado or {}).get("totais") or {}
+        log.info(
+            "Sync inicial concluído: +%s / ~%s / %s erro(s)",
+            totais.get("inseridos", 0),
+            totais.get("atualizados", 0),
+            totais.get("erros", 0),
+        )
+    except Exception as erro:
+        log.warning("Sync inicial falhou: %s", erro)
+
+
+app.on_startup(lambda: threading.Thread(target=_sync_inicial, daemon=True).start())
 
 
 @ui.page("/")

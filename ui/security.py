@@ -17,7 +17,7 @@ from core import auth
 
 CAMINHO_LOGIN = "/login"
 PREFIXO_INTERNO = "/_nicegui"
-CAMINHOS_LIVRES = {CAMINHO_LOGIN, "/favicon.ico"}
+CAMINHOS_LIVRES = {CAMINHO_LOGIN, "/sync", "/favicon.ico"}
 
 
 # --------------------------------------------------------------------------

@@ -36,15 +36,26 @@ def _consultar_um(sql: str, parametros=()) -> dict | None:
 # --------------------------------------------------------------------------
 # Disciplinas
 # --------------------------------------------------------------------------
+def _coluna_existe(tabela: str, coluna: str) -> bool:
+    """Verifica se uma coluna existe na tabela."""
+    try:
+        with db.abrir() as con:
+            colunas = [r[1] for r in con.execute(f"PRAGMA table_info({tabela})").fetchall()]
+            return coluna in colunas
+    except Exception:
+        return False
+
+
 def listar_disciplinas(incluir_treinamento: bool = False, apenas_ativas: bool = False) -> list[dict]:
     """Lista as disciplinas, opcionalmente incluindo as do tipo 'training'.
     
     Se apenas_ativas=True, exclui disciplinas inativas e completas.
+    Se a coluna 'status' não existir, ignora o filtro de status.
     """
     condicoes = []
     if not incluir_treinamento:
         condicoes.append("COALESCE(type, '') <> 'training'")
-    if apenas_ativas:
+    if apenas_ativas and _coluna_existe("subjects", "status"):
         condicoes.append("COALESCE(status, 'incompleta') = 'incompleta'")
     
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
@@ -124,17 +135,18 @@ def listar_disciplinas_da_turma(class_id, apenas_ativas: bool = False) -> list[d
     """Lista disciplinas vinculadas a uma turma.
     
     Se apenas_ativas=True, exclui disciplinas inativas e completas.
+    Se a coluna 'status' não existir, ignora o filtro de status.
     """
     condicoes = ["cs.class_id = ?"]
     parametros = [str(class_id)]
     
-    if apenas_ativas:
+    if apenas_ativas and _coluna_existe("subjects", "status"):
         condicoes.append("COALESCE(s.status, 'incompleta') = 'incompleta'")
     
     where = " AND ".join(condicoes)
     return _consultar(
-        f"SELECT s.* FROM subjects s "
-        f"JOIN class_subjects cs ON cs.subject_id = s.id "
+        "SELECT s.* FROM subjects s "
+        "JOIN class_subjects cs ON cs.subject_id = s.id "
         f"WHERE {where} ORDER BY s.name",
         tuple(parametros),
     )

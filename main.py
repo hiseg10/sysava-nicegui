@@ -14,6 +14,9 @@ from nicegui import app, ui
 from core import auth, logs, repositories, sync
 from ui import layout, security
 
+# Sinaliza quando o sync inicial terminou (login/queries ficam indisponíveis até lá).
+sync_pronta = threading.Event()
+
 logs.configurar()
 security.instalar()
 log = logging.getLogger("sysava.startup")
@@ -98,8 +101,14 @@ def _sync_inicial():
             totais.get("atualizados", 0),
             totais.get("erros", 0),
         )
+        # Re-executa migrações de colunas que só existem localmente
+        # (a tabela foi criada pelo sync a partir do schema remoto).
+        from core.turmas import _ensure_columns
+        _ensure_columns()
     except Exception as erro:
         log.warning("Sync inicial falhou: %s", erro)
+    finally:
+        sync_pronta.set()
 
 
 app.on_startup(lambda: threading.Thread(target=_sync_inicial, daemon=True).start())
@@ -118,6 +127,17 @@ def _push_ao_sair():
 
 
 app.on_shutdown(_push_ao_sair)
+
+
+@ui.page("/syncing")
+def syncing_page():
+    """Exibida enquanto o sync inicial roda no startup."""
+    ui.add_head_html("<style>body { background: #f1f5f9; }</style>")
+    with ui.column().classes("w-full items-center justify-center").style("min-height: 100vh"):
+        ui.spinner(size="xl", color="primary")
+        ui.label("Sincronizando dados com o servidor...").classes("text-h6 q-mt-md text-grey-7")
+        ui.label("Isso leva alguns segundos no primeiro acesso.").classes("text-caption text-grey-6")
+        ui.timer(2.0, lambda: ui.navigate.to("/syncing") if not sync_pronta.is_set() else ui.navigate.to("/login"))
 
 
 @ui.page("/")

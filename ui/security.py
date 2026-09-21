@@ -17,7 +17,7 @@ from core import auth
 
 CAMINHO_LOGIN = "/login"
 PREFIXO_INTERNO = "/_nicegui"
-CAMINHOS_LIVRES = {CAMINHO_LOGIN, "/sync", "/favicon.ico"}
+CAMINHOS_LIVRES = {CAMINHO_LOGIN, "/sync", "/syncing", "/favicon.ico"}
 
 
 # --------------------------------------------------------------------------
@@ -94,6 +94,13 @@ class MiddlewareAutenticacao(BaseHTTPMiddleware):
         caminho = request.url.path
 
         if caminho.startswith(PREFIXO_INTERNO) or caminho in CAMINHOS_LIVRES:
+            return await call_next(request)
+
+        # Enquanto o sync inicial não termina, redireciona para /syncing
+        from main import sync_pronta
+        if not sync_pronta.is_set():
+            if caminho != "/syncing":
+                return RedirectResponse("/syncing")
             return await call_next(request)
 
         sessao = app.storage.user

@@ -61,7 +61,7 @@ def forum_page(client):
 
     with ui.card().classes("w-full q-pa-md q-mb-md"):
         ui.label("Nova Mensagem").classes("text-subtitle1")
-        mensagem = ui.text_area("Escreva sua mensagem:").classes("w-full").props("outlined autogrow")
+        mensagem = ui.textarea("Escreva sua mensagem:").classes("w-full").props("outlined autogrow")
 
         def enviar_post():
             if not mensagem.value or not mensagem.value.strip():

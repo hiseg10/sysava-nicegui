@@ -34,7 +34,7 @@ def _push_forum_post(username: str, message: str, lesson_id: int | None) -> None
 
 
 @ui.page("/forum")
-def forum_page(request):
+def forum_page(client):
     usuario = security.usuario_atual() or {}
     username = usuario.get("username")
 
@@ -48,7 +48,7 @@ def forum_page(request):
         ui.label("Voce precisa estar logado para acessar o forum.").classes("text-grey-7")
         return
 
-    lesson_id_str = request.query_params.get("lesson_id")
+    lesson_id_str = client.request.query_params.get("lesson_id")
     lesson_id = int(lesson_id_str) if lesson_id_str else None
 
     if lesson_id:

@@ -283,9 +283,9 @@ def _montar_acesso_rapido() -> None:
             Conteudo.clear()
             with Conteudo:
                 ui.label("Notas por Disciplina").classes("text-subtitle1")
-                disciplinas = repositories.listar_disciplinas_da_turma(turma_id, apenas_ativas=True)
+                disciplinas = repositories.listar_disciplinas_da_turma(turma_id)
                 if not disciplinas:
-                    ui.label("Nenhuma disciplina ativa vinculada.").classes("text-grey-7")
+                    ui.label("Nenhuma disciplina vinculada a esta turma.").classes("text-grey-7")
                     return
                 opcoes_d = {str(d["id"]): f"{d.get('name', '')} ({d.get('duration_type', 'N/A')})" for d in disciplinas}
                 sel_disc = ui.select(opcoes_d, label="Disciplina", on_change=lambda e: _carregar_notas(turma_id, e.value)).classes("w-full")
@@ -359,9 +359,9 @@ def _montar_acesso_rapido() -> None:
             Conteudo.clear()
             with Conteudo:
                 ui.label("Pontos por Disciplina").classes("text-subtitle1")
-                disciplinas = repositories.listar_disciplinas_da_turma(turma_id, apenas_ativas=True)
+                disciplinas = repositories.listar_disciplinas_da_turma(turma_id)
                 if not disciplinas:
-                    ui.label("Nenhuma disciplina ativa vinculada.").classes("text-grey-7")
+                    ui.label("Nenhuma disciplina vinculada a esta turma.").classes("text-grey-7")
                     return
                 opcoes_d = {str(d["id"]): f"{d.get('name', '')} ({d.get('duration_type', 'N/A')})" for d in disciplinas}
                 sel_disc = ui.select(opcoes_d, label="Disciplina", on_change=lambda e: _carregar_pontos(turma_id, e.value)).classes("w-full")

@@ -8,6 +8,7 @@ seguro para o servidor do NiceGUI.
 
 from __future__ import annotations
 
+import sqlite3
 from core import db
 
 
@@ -16,11 +17,14 @@ from core import db
 # --------------------------------------------------------------------------
 def _consultar(sql: str, parametros=()) -> list[dict]:
     """Executa um SELECT e devolve uma lista de dicionários."""
-    with db.abrir() as con:
-        cursor = con.execute(sql, parametros)
-        if cursor.description is None:
-            return []
-        return [dict(linha) for linha in cursor.fetchall()]
+    try:
+        with db.abrir() as con:
+            cursor = con.execute(sql, parametros)
+            if cursor.description is None:
+                return []
+            return [dict(linha) for linha in cursor.fetchall()]
+    except sqlite3.OperationalError:
+        return []
 
 
 def _consultar_um(sql: str, parametros=()) -> dict | None:
@@ -313,10 +317,14 @@ def contagens_gerais() -> dict[str, int]:
         "planejamento", "weekly_schedule",
     ]
     contagens: dict[str, int] = {}
-    with db.abrir() as con:
+    try:
+        with db.abrir() as con:
+            for tabela in tabelas:
+                try:
+                    contagens[tabela] = con.execute(f'SELECT COUNT(*) FROM "{tabela}"').fetchone()[0]
+                except Exception:
+                    contagens[tabela] = 0
+    except sqlite3.OperationalError:
         for tabela in tabelas:
-            try:
-                contagens[tabela] = con.execute(f'SELECT COUNT(*) FROM "{tabela}"').fetchone()[0]
-            except Exception:
-                contagens[tabela] = 0
+            contagens[tabela] = 0
     return contagens

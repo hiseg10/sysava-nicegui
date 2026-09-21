@@ -48,24 +48,30 @@ _ensure_columns()
 # --------------------------------------------------------------------------
 def listar_turmas() -> list[dict]:
     """Lista todas as turmas com contagem de alunos."""
-    with db.abrir() as con:
-        linhas = con.execute(
-            """SELECT c.*,
-                      (SELECT COUNT(*) FROM student_enrollments e WHERE e.class_id = c.id) AS alunos
-               FROM classes c ORDER BY c.name"""
-        ).fetchall()
-    return [dict(linha) for linha in linhas]
+    try:
+        with db.abrir() as con:
+            linhas = con.execute(
+                """SELECT c.*,
+                          (SELECT COUNT(*) FROM student_enrollments e WHERE e.class_id = c.id) AS alunos
+                   FROM classes c ORDER BY c.name"""
+            ).fetchall()
+        return [dict(linha) for linha in linhas]
+    except sqlite3.OperationalError:
+        return []
 
 
 def obter_turma(class_id) -> dict | None:
-    with db.abrir() as con:
-        linha = con.execute(
-            """SELECT c.*,
-                      (SELECT COUNT(*) FROM student_enrollments e WHERE e.class_id = c.id) AS alunos
-               FROM classes c WHERE c.id = ?""",
-            (str(class_id),),
-        ).fetchone()
-    return dict(linha) if linha else None
+    try:
+        with db.abrir() as con:
+            linha = con.execute(
+                """SELECT c.*,
+                          (SELECT COUNT(*) FROM student_enrollments e WHERE e.class_id = c.id) AS alunos
+                   FROM classes c WHERE c.id = ?""",
+                (str(class_id),),
+            ).fetchone()
+        return dict(linha) if linha else None
+    except sqlite3.OperationalError:
+        return None
 
 
 def criar_turma(name: str, code: str = "", tipo_turma: str = "normal",
@@ -136,15 +142,21 @@ def listar_disciplinas() -> list[dict]:
 
 
 def _ler_disciplinas() -> list[dict]:
-    with db.abrir() as con:
-        linhas = con.execute("SELECT * FROM subjects ORDER BY name").fetchall()
-    return [dict(linha) for linha in linhas]
+    try:
+        with db.abrir() as con:
+            linhas = con.execute("SELECT * FROM subjects ORDER BY name").fetchall()
+        return [dict(linha) for linha in linhas]
+    except sqlite3.OperationalError:
+        return []
 
 
 def obter_disciplina(subject_id) -> dict | None:
-    with db.abrir() as con:
-        linha = con.execute("SELECT * FROM subjects WHERE id = ?", (str(subject_id),)).fetchone()
-    return dict(linha) if linha else None
+    try:
+        with db.abrir() as con:
+            linha = con.execute("SELECT * FROM subjects WHERE id = ?", (str(subject_id),)).fetchone()
+        return dict(linha) if linha else None
+    except sqlite3.OperationalError:
+        return None
 
 
 def criar_disciplina(name: str, tipo: str = "regular", carga_horaria: int = 0,
@@ -245,14 +257,17 @@ def remover_disciplina(subject_id) -> bool:
 # Vínculos turma ↔ disciplina
 # --------------------------------------------------------------------------
 def listar_disciplinas_da_turma(class_id) -> list[dict]:
-    with db.abrir() as con:
-        linhas = con.execute(
-            """SELECT s.* FROM subjects s
-               JOIN class_subjects cs ON cs.subject_id = s.id
-               WHERE cs.class_id = ? ORDER BY s.name""",
-            (str(class_id),),
-        ).fetchall()
-    return [dict(linha) for linha in linhas]
+    try:
+        with db.abrir() as con:
+            linhas = con.execute(
+                """SELECT s.* FROM subjects s
+                   JOIN class_subjects cs ON cs.subject_id = s.id
+                   WHERE cs.class_id = ? ORDER BY s.name""",
+                (str(class_id),),
+            ).fetchall()
+        return [dict(linha) for linha in linhas]
+    except sqlite3.OperationalError:
+        return []
 
 
 def vincular_disciplina(class_id, subject_id) -> bool:
@@ -285,11 +300,14 @@ def desvincular_disciplina(class_id, subject_id) -> bool:
 # Matrículas
 # --------------------------------------------------------------------------
 def contar_alunos(class_id) -> int:
-    with db.abrir() as con:
-        resultado = con.execute(
-            "SELECT COUNT(*) FROM student_enrollments WHERE class_id = ?", (class_id,)
-        ).fetchone()
-    return resultado[0] if resultado else 0
+    try:
+        with db.abrir() as con:
+            resultado = con.execute(
+                "SELECT COUNT(*) FROM student_enrollments WHERE class_id = ?", (class_id,)
+            ).fetchone()
+        return resultado[0] if resultado else 0
+    except sqlite3.OperationalError:
+        return 0
 
 
 def matricular_aluno(username: str, class_id) -> bool:
@@ -317,12 +335,15 @@ def desmatricular_aluno(username: str) -> bool:
 
 def listar_alunos_sem_turma() -> list[dict]:
     """Lista alunos que não estão matriculados em nenhuma turma."""
-    with db.abrir() as con:
-        linhas = con.execute(
-            """SELECT u.* FROM app_users u
-               LEFT JOIN student_enrollments e ON e.user_username = u.username
-               WHERE e.user_username IS NULL
-               AND u.role = 'student'
-               ORDER BY u.name"""
-        ).fetchall()
-    return [dict(linha) for linha in linhas]
+    try:
+        with db.abrir() as con:
+            linhas = con.execute(
+                """SELECT u.* FROM app_users u
+                   LEFT JOIN student_enrollments e ON e.user_username = u.username
+                   WHERE e.user_username IS NULL
+                   AND u.role = 'student'
+                   ORDER BY u.name"""
+            ).fetchall()
+        return [dict(linha) for linha in linhas]
+    except sqlite3.OperationalError:
+        return []

@@ -7,6 +7,7 @@ Porte (sem Streamlit) da lógica de `views/aulas.py`.
 from __future__ import annotations
 
 import re
+import sqlite3
 
 from core import db, parsing, repositories as repo
 
@@ -26,10 +27,13 @@ def questoes_do_quiz(quiz_id) -> list[dict]:
     """Questões de um quiz, com `options` como lista e índice correto como int."""
     if quiz_id is None:
         return []
-    with db.abrir() as con:
-        linhas = con.execute(
-            "SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY id", (str(quiz_id),)
-        ).fetchall()
+    try:
+        with db.abrir() as con:
+            linhas = con.execute(
+                "SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY id", (str(quiz_id),)
+            ).fetchall()
+    except sqlite3.OperationalError:
+        return []
     questoes = []
     for linha in linhas:
         item = dict(linha)

@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from nicegui import ui
 
-from core import db, repositories as repo
+from core import auth, db, repositories as repo
 from ui import layout, security
 
 
@@ -33,10 +33,34 @@ def _push_forum_post(username: str, message: str, lesson_id: int | None) -> None
     threading.Thread(target=_enviar, daemon=True).start()
 
 
+def _apagar_post(post_id) -> None:
+    """Remove um post do SQLite e do Supabase."""
+    try:
+        with db.abrir(somente_leitura=False) as con:
+            con.execute("DELETE FROM forum_posts WHERE id = ?", (post_id,))
+            con.commit()
+    except Exception:
+        pass
+
+    def _remover_supabase():
+        try:
+            from core import sync
+            cli = sync.cliente()
+            cli.table("forum_posts").delete().eq("id", post_id).execute()
+        except Exception:
+            pass
+
+    import threading
+    threading.Thread(target=_remover_supabase, daemon=True).start()
+    ui.notify("Mensagem excluida!", type="positive")
+    ui.reload()
+
+
 @ui.page("/forum")
 def forum_page(client):
     usuario = security.usuario_atual() or {}
     username = usuario.get("username")
+    is_admin = usuario.get("role") == auth.PAPEL_ADMIN
 
     layout.inicio_pagina(
         "Forum",
@@ -100,6 +124,10 @@ def forum_page(client):
             with ui.row().classes("w-full items-center gap-2 q-mb-sm"):
                 ui.label(post.get("user_name", "Anonimo")).classes("font-medium")
                 ui.space()
+                if is_admin:
+                    post_id = post.get("id")
+                    if post_id is not None:
+                        ui.button(icon="delete", on_click=lambda pid=post_id: _apagar_post(pid)).props("flat color=negative dense")
                 ui.label(hora).classes("text-caption text-grey-7")
             ui.label(post.get("message", "")).classes("q-mb-xs")
 

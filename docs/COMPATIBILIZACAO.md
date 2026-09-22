@@ -73,6 +73,33 @@ LEGACY = "data/escola_ativa_legado.db"
 2. Se a avaliação não existe, verificar se existe no `escola_ativa_legado`
 3. Criar a avaliação faltante ou corrigir o ID
 
+### Por que 18 tabelas e por que não se pode perder dados órfãos
+
+O schema final tem 18 tabelas porque cada uma tem responsabilidade única e não pode ser fundida sem quebrar a normalização. Fusão implicaria dados duplicados ou NULLs — exatamente o problema do banco legado.
+
+| # | Tabela | Por que separada? |
+|---|--------|-------------------|
+| 1 | `users` | Auth (username, role, password_hash) |
+| 2 | `classes` | Entidade raiz da organização |
+| 3 | `subjects` | Metadados próprios (aliases, carga_horaria, type) |
+| 4 | `class_subjects` | Relação N:N turma↔disciplina |
+| 5 | `student_enrollments` | Matrículas ≠ class_subjects |
+| 6 | `lessons` | Conteúdo pedagógico completo |
+| 7 | `quizzes` | Metadados do quiz |
+| 8 | `quiz_questions` | Questões são JSON complexo |
+| 9 | `assessments` | MN1/MN2/MN3 têm lógica própria |
+| 10 | `assessment_questions` | JSON complexo |
+| 11 | `student_assessments` | Submissões com score/status |
+| 12 | `student_assessment_answers` | Respostas individuais por questão |
+| 13 | `attendance` | Frequência com campos específicos |
+| 14 | `forum_posts` | Conteúdo de fórum |
+| 15 | `weekly_schedule` | Grade horária |
+| 16 | `user_history` | Audit trail (13,547 registros) para cálculo de progresso e notas |
+| 17 | `qualitative_points` | Notas descritivas ≠ notas quantitativas |
+| 18 | `student_grades` | Notas calculadas automáticas |
+
+**Consequência de perder dados órfãos:** Sem `quiz_questions` e `student_assessments` completos, o `user_history` e `student_grades` não podem ser calculados corretamente. O aluno perde histórico de progresso, notas e atividades. Cada registro órfão é um pedaço do histórico escolar de um aluno real.
+
 ### Scripts Necessários
 
 - `data/compatibilizar.py` — script principal de compatibilização

@@ -97,6 +97,7 @@ def obter_usuario(login: str) -> dict | None:
     usuario = _buscar(login)
     if not usuario:
         return None
+    usuario.pop("password_hash", None)
     usuario.pop("password", None)
     return usuario
 
@@ -130,10 +131,11 @@ def autenticar(login: str, senha: str) -> dict | None:
     dados = _buscar(login)
     if not dados:
         return None
-    if not verificar_senha(senha, dados.get("password")):
+    if not verificar_senha(senha, dados.get("password_hash")):
         return None
     if not esta_ativo(dados):
         return None
+    dados.pop("password_hash", None)
     dados.pop("password", None)
     return dados
 

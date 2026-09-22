@@ -27,10 +27,30 @@ con = sqlite3.connect(str(LEGACY_DB))
 con.row_factory = sqlite3.Row
 cur = con.cursor()
 
+# Mapeamento: tabela Supabase -> tabela SQLite legado
+LEGACY_MAP = {
+    "users": "app_users",
+    "classes": "classes",
+    "subjects": "subjects",
+    "class_subjects": "class_subjects",
+    "student_enrollments": "student_enrollments",
+    "lessons": "lessons",
+    "quizzes": "quizzes",
+    "quiz_questions": "quiz_questions",
+    "assessments": "assessments",
+    "assessment_questions": "assessment_questions",
+    "student_assessments": "student_assessments",
+    "student_assessment_answers": "student_assessment_answers",
+    "attendance": "attendance",
+    "forum_posts": "forum_posts",
+    "weekly_schedule": "weekly_schedule",
+}
+
 
 def migrate(table: str, columns: list, batch_size: int = 100):
-    """Lê do SQLite e faz upsert no Supabase em batches."""
-    rows = [dict(r) for r in cur.execute(f"SELECT * FROM {table}").fetchall()]
+    """Lê do SQLite (tabela legada) e faz upsert no Supabase (tabela nova)."""
+    legacy_table = LEGACY_MAP.get(table, table)
+    rows = [dict(r) for r in cur.execute(f"SELECT * FROM {legacy_table}").fetchall()]
     if not rows:
         print(f"  [SKIP] {table} vazio")
         return
@@ -50,7 +70,8 @@ def migrate(table: str, columns: list, batch_size: int = 100):
 
 def migrate_json(table: str, columns: list, json_cols: list, batch_size: int = 50):
     """Igual migrate() mas converte colunas JSON antes de enviar."""
-    rows = [dict(r) for r in cur.execute(f"SELECT * FROM {table}").fetchall()]
+    legacy_table = LEGACY_MAP.get(table, table)
+    rows = [dict(r) for r in cur.execute(f"SELECT * FROM {legacy_table}").fetchall()]
     if not rows:
         print(f"  [SKIP] {table} vazio")
         return
@@ -124,11 +145,10 @@ print("\n[student_assessments]")
 migrate("student_assessments", ["id", "assessment_id", "user_username",
                                  "score", "status", "submitted_at"])
 
-print("\n[student_assessment_answers] (JSON)")
-migrate_json("student_assessment_answers", ["id", "submission_id", "question_id",
-                                              "answer_text", "answer_link",
-                                              "selected_option_index"],
-              [])
+print("\n[student_assessment_answers]")
+migrate("student_assessment_answers", ["id", "submission_id", "question_id",
+                                         "answer_text", "answer_link",
+                                         "selected_option_index"])
 
 print("\n[attendance]")
 migrate("attendance", ["class_name", "subject_id", "student_name", "student_number",
@@ -141,8 +161,8 @@ print("\n[weekly_schedule]")
 migrate("weekly_schedule", ["class_id", "class_name", "day_of_week", "time_slot",
                              "subject_name", "professor_name"])
 
-print("\n[user_history] (não sincronizado - local apenas)")
-print("  [SKIP] user_history mantido no SQLite local")
+print("\n[user_history] (não sincronizado)")
+print("  [SKIP] mantido no SQLite local")
 
 con.close()
 print("\nMigracao concluida!")

@@ -76,9 +76,19 @@ def caminho_env() -> Path:
 
 
 def carregar_credenciais(recarregar: bool = False) -> dict:
-    """Lê SUPABASE_URL/SUPABASE_KEY das variáveis de ambiente ou do .env."""
+    """Lê SUPABASE_URL e a chave de serviço (service_role) do ambiente ou .env.
+
+    O sync é server-side e precisa da chave `service_role` para:
+    1. Listar tabelas via OpenAPI (`/rest/v1/` — só aceita service_role).
+    2. Ler todas as linhas ignorando o RLS (a chave anon retorna vazio).
+    Fallback para SUPABASE_KEY (anon) se a service_role não existir.
+    """
     url = (os.environ.get("SUPABASE_URL") or "").strip()
-    key = (os.environ.get("SUPABASE_KEY") or "").strip()
+    key = (
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_KEY")
+        or ""
+    ).strip()
     env_file = caminho_env()
 
     if not (url and key) and env_file.exists():
@@ -87,7 +97,11 @@ def carregar_credenciais(recarregar: bool = False) -> dict:
 
             valores = dotenv_values(env_file)
             url = url or (valores.get("SUPABASE_URL") or "").strip()
-            key = key or (valores.get("SUPABASE_KEY") or "").strip()
+            key = key or (
+                valores.get("SUPABASE_SERVICE_ROLE_KEY")
+                or valores.get("SUPABASE_KEY")
+                or ""
+            ).strip()
         except Exception:
             pass
 
@@ -130,7 +144,8 @@ def cliente(recriar: bool = False):
             cred = carregar_credenciais()
             if not (cred["url"] and cred["key"]):
                 raise SyncError(
-                    "Credenciais do Supabase ausentes. Defina SUPABASE_URL e SUPABASE_KEY "
+                    "Credenciais do Supabase ausentes. Defina SUPABASE_URL e "
+                    "SUPABASE_SERVICE_ROLE_KEY "
                     f"(por exemplo em {caminho_env()})."
                 )
             try:
@@ -772,7 +787,8 @@ def sincronizar(
     cred = carregar_credenciais()
     if not (cred["url"] and cred["key"]):
         raise SyncError(
-            "Credenciais do Supabase ausentes. Defina SUPABASE_URL e SUPABASE_KEY "
+            "Credenciais do Supabase ausentes. Defina SUPABASE_URL e "
+            "SUPABASE_SERVICE_ROLE_KEY "
             f"(por exemplo em {caminho_env()})."
         )
 

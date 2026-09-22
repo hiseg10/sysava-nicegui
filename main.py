@@ -95,7 +95,7 @@ def _sync_inicial():
         try:
             from core import db
             with db.abrir() as con:
-                total = con.execute("SELECT COUNT(*) FROM app_users").fetchone()[0]
+                total = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
                 banco_cheio = total > 0
         except Exception:
             pass  # tabela não existe ou banco vazio

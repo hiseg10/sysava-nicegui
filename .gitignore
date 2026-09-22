@@ -32,6 +32,7 @@ Thumbs.db
 # Data files (local only)
 data/*.json
 data/*.db
+data/*.sql
 data/storage_secret.txt
 
 # Windows scripts

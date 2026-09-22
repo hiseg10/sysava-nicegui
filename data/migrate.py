@@ -46,7 +46,7 @@ def safe_print(s):
     except (UnicodeEncodeError, UnicodeDecodeError):
         print(s.encode('utf-8', errors='replace').decode('utf-8', errors='replace'))
 
-def migrate(table, columns, batch_size=50, fk_checks=None):
+def migrate(table, columns, batch_size=50, fk_checks=None, on_conflict=None):
     legacy = LEGACY_MAP.get(table, table)
     all_rows = [dict(r) for r in cur.execute(f"SELECT * FROM {legacy}").fetchall()]
     if not all_rows:
@@ -83,7 +83,10 @@ def migrate(table, columns, batch_size=50, fk_checks=None):
         batch = all_rows[i:i+batch_size]
         data_list = [{c: row.get(c) for c in columns} for row in batch]
         try:
-            client.table(table).upsert(data_list).execute()
+            if on_conflict:
+                client.table(table).upsert(data_list, on_conflict=on_conflict).execute()
+            else:
+                client.table(table).upsert(data_list).execute()
             ok += len(batch)
             print(f"    progress {ok}/{total}")
         except Exception as e:
@@ -91,7 +94,10 @@ def migrate(table, columns, batch_size=50, fk_checks=None):
             for row in batch:
                 try:
                     data = {c: row.get(c) for c in columns}
-                    client.table(table).upsert(data).execute()
+                    if on_conflict:
+                        client.table(table).upsert(data, on_conflict=on_conflict).execute()
+                    else:
+                        client.table(table).upsert(data).execute()
                     ok += 1
                 except Exception:
                     pass
@@ -114,7 +120,8 @@ migrate("class_subjects", ["id", "class_id", "subject_id", "is_active"],
 
 print("[student_enrollments]")
 migrate("student_enrollments", ["class_id", "user_username"],
-        fk_checks=[("class_id", "classes")])
+        fk_checks=[("class_id", "classes")],
+        on_conflict="class_id,user_username")
 
 print("[lessons]")
 migrate("lessons", ["id", "subject_id", "title", "description", "full_content", "objective", "resources", "video_url", "week", "status", "uuid"],
@@ -154,7 +161,8 @@ migrate("forum_posts", ["lesson_id", "user_name", "message"],
 
 print("[weekly_schedule]")
 migrate("weekly_schedule", ["class_id", "class_name", "day_of_week", "time_slot", "subject_name", "professor_name"],
-        fk_checks=[("class_id", "classes")])
+        fk_checks=[("class_id", "classes")],
+        on_conflict="class_id,day_of_week,time_slot,subject_name")
 
 print("[user_history]")
 migrate("user_history", ["id", "username", "activity", "timestamp"])

@@ -12,6 +12,7 @@ env_file = Path(__file__).resolve().parent.parent / ".env"
 valores = dotenv_values(str(env_file))
 URL = os.environ.get("SUPABASE_URL") or valores.get("SUPABASE_URL")
 KEY = os.environ.get("SUPABASE_KEY") or valores.get("SUPABASE_KEY")
+SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or valores.get("SUPABASE_SERVICE_ROLE_KEY")
 
 if not URL or not KEY:
     print("ERRO: Defina SUPABASE_URL e SUPABASE_KEY")
@@ -19,9 +20,9 @@ if not URL or not KEY:
 
 from supabase import create_client
 import sqlite3
-from pathlib import Path
 
-client = create_client(URL, KEY)
+# Usa service_role para burlar RLS durante migracao
+client = create_client(URL, SERVICE_KEY or KEY)
 LEGACY_DB = Path(__file__).resolve().parent.parent / "data" / "escola_ativa.db"
 con = sqlite3.connect(str(LEGACY_DB))
 con.row_factory = sqlite3.Row
@@ -165,4 +166,16 @@ print("\n[user_history] (não sincronizado)")
 print("  [SKIP] mantido no SQLite local")
 
 con.close()
+
+# Reabilita RLS
+print("\nReabilitando RLS...")
+for t in ["users","classes","subjects","class_subjects","student_enrollments",
+          "lessons","quizzes","quiz_questions","assessments","assessment_questions",
+          "student_assessments","student_assessment_answers","attendance",
+          "forum_posts","weekly_schedule"]:
+    try:
+        client.rpc("exec_sql", {"sql": f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY"}).execute()
+    except Exception:
+        pass
+
 print("\nMigracao concluida!")

@@ -129,6 +129,15 @@ def _sync_inicial():
 app.on_startup(lambda: threading.Thread(target=_sync_inicial, daemon=True).start())
 
 
+def _iniciar_escutador_local():
+    """No local, recarrega credenciais do .env sem reiniciar o app."""
+    if sync.iniciar_escutador_env():
+        log.info("Modo local: escutador de .env ativo (reload de código também habilitado).")
+
+
+app.on_startup(_iniciar_escutador_local)
+
+
 def _push_ao_sair():
     """Envia dados locais de volta para o Supabase ao encerrar."""
     try:
@@ -197,10 +206,11 @@ def dashboard():
 
 
 if __name__ == "__main__":
+    local = sync.eh_local()
     ui.run(
         port=int(os.environ.get("PORT", 8080)),
         host="0.0.0.0",
-        reload=False,
+        reload=local,
         storage_secret=auth.storage_secret(),
         title="SysAVA",
     )

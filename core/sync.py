@@ -21,6 +21,7 @@ Uso típico:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -32,6 +33,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from core import db
+
+log = logging.getLogger("sysava.sync")
 
 PROJETO_DIR = db.PROJETO_DIR
 STATE_PATH = Path(os.environ.get("SYSAVA_STATE_PATH", str(PROJETO_DIR / "data" / "sync_state.json")))
@@ -91,6 +94,11 @@ def _ambiente_execucao() -> str:
     if os.environ.get("RENDER"):
         return "servidor"
     return "local"
+
+
+def eh_local() -> bool:
+    """True quando o app roda em desenvolvimento local (não no servidor)."""
+    return _ambiente_execucao() == "local"
 
 
 def carregar_credenciais(recarregar: bool = False) -> dict:
@@ -249,6 +257,59 @@ def esquema_remoto(recarregar: bool = False) -> dict[str, list[str]]:
 def listar_tabelas_remotas() -> list[str]:
     """Nomes das tabelas disponíveis no Supabase, em ordem alfabética."""
     return sorted(esquema_remoto().keys())
+
+
+def invalidar_cache() -> None:
+    """Descarta cliente Supabase e esquema em cache (ex.: após editar o .env)."""
+    global _cliente, _esquema_cache
+    with _cliente_lock:
+        _cliente = None
+    with _esquema_lock:
+        _esquema_cache = None
+
+
+_escutador_env_ativo = False
+_escutador_env_lock = threading.Lock()
+
+
+def iniciar_escutador_env(intervalo: float = 2.0) -> bool:
+    """Observa o .env local e invalida os caches quando o arquivo muda.
+
+    Troca credenciais em desenvolvimento sem reiniciar o app. Ativo apenas no
+    ambiente local; no servidor as credenciais vêm de variáveis estáticas.
+    Retorna True se o escutador está ativo (iniciado agora ou já rodando).
+    """
+    global _escutador_env_ativo
+    if not eh_local():
+        return False
+    with _escutador_env_lock:
+        if _escutador_env_ativo:
+            return True
+        _escutador_env_ativo = True
+
+    env_file = caminho_env()
+
+    def _mtime() -> float | None:
+        try:
+            return env_file.stat().st_mtime if env_file.exists() else None
+        except OSError:
+            return None
+
+    ultimo = _mtime()
+
+    def _loop() -> None:
+        nonlocal ultimo
+        log.info("Escutador de .env ativo: %s (verifica a cada %.0fs)", env_file, intervalo)
+        while True:
+            time.sleep(intervalo)
+            atual = _mtime()
+            if atual != ultimo:
+                ultimo = atual
+                invalidar_cache()
+                log.info(".env alterado — caches do Supabase recarregados (sem reiniciar).")
+
+    threading.Thread(target=_loop, daemon=True, name="sysava-env-watcher").start()
+    return True
 
 
 # --------------------------------------------------------------------------

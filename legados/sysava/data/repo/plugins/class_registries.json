@@ -1,0 +1,19 @@
+{
+    "data": [
+        {
+            "id": 1,
+            "timestamp": "2026-06-02T10:20:17.076619",
+            "tipo": "-- Selecione --",
+            "turma": "2ª SÉRIE - Turma I-A (Técnico DS)",
+            "componente": "PROGRAMAÇÃO ORIENTADA À OBJETOS - POO",
+            "data": "2026-03-27",
+            "horario": "07:10",
+            "competencia": "-- Selecione --",
+            "habilidade": "-- Selecione --",
+            "objetivo": "Capacitar o aluno a compreender e aplicar os conceitos de PROGRAMAÇÃO ORIENTADA À OBJETOS - POO.",
+            "conteudo": "Aula 1: Aula 1: Introdução ao Paradigma OO. Capacitar o aluno a compreender e aplicar os conceitos de PROGRAMAÇÃO ORIENTADA À OBJETOS - POO.",
+            "estrategia": "Aula expositiva com uso de quadro branco, pincel e projetor"
+        }
+        
+    ]
+}

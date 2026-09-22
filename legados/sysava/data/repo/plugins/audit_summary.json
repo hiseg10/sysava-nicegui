@@ -1,0 +1,77 @@
+{
+    "app_users": {
+        "label": "Usuários",
+        "count": 46,
+        "status": "ok"
+    },
+    "classes": {
+        "label": "Turmas",
+        "count": 2,
+        "status": "ok"
+    },
+    "subjects": {
+        "label": "Disciplinas",
+        "count": 16,
+        "status": "ok"
+    },
+    "lessons": {
+        "label": "Aulas",
+        "count": 344,
+        "status": "ok"
+    },
+    "quizzes": {
+        "label": "Quizzes",
+        "count": 378,
+        "status": "ok"
+    },
+    "quiz_questions": {
+        "label": "Questões de Quiz",
+        "count": 1035,
+        "status": "ok"
+    },
+    "assessments": {
+        "label": "Avaliações (Provas)",
+        "count": 15,
+        "status": "ok"
+    },
+    "assessment_questions": {
+        "label": "Questões de Prova",
+        "count": 135,
+        "status": "ok"
+    },
+    "attendance": {
+        "label": "Registros de Frequência",
+        "count": 488,
+        "status": "ok"
+    },
+    "weekly_schedule": {
+        "label": "Grade Horária",
+        "count": 22,
+        "status": "ok"
+    },
+    "student_enrollments": {
+        "label": "Matrículas",
+        "count": 42,
+        "status": "ok"
+    },
+    "class_subjects": {
+        "label": "Vínculos Turma/Disc",
+        "count": 28,
+        "status": "ok"
+    },
+    "historico_aulas": {
+        "label": "Histórico de Automação (Robô)",
+        "count": 1234,
+        "status": "ok"
+    },
+    "planejamento": {
+        "label": "Fila de Planejamento",
+        "count": 0,
+        "status": "ok"
+    },
+    "master_config": {
+        "label": "Espelhamento de Configurações",
+        "count": 5,
+        "status": "ok"
+    }
+}

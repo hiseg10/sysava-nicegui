@@ -18,6 +18,7 @@ data/escola_ativa.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+backups/
 
 # IDE
 .vscode/
@@ -29,33 +30,11 @@ data/*.db-shm
 .DS_Store
 Thumbs.db
 
-# Data files (local only)
-data/*.json
-data/*.db
-data/*.sql
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
-data/storage_secret.txt
-
-# Windows scripts
-run.bat
-setup.ps1
-
-# Root init (not needed)
-__init__.py
-
 # Logs
 *.log
 
 # NiceGUI
 .nicegui/
-
-# Old files (keep only the NiceGUI version)
-sysava/
-sysava-nice/
-legados/
-*.pdf
 
 # OpenCode config
 .opencode/

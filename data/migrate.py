@@ -1,6 +1,6 @@
 """
 Migra dados do escola_ativa.db para o Supabase via API.
-Filtra registros órfãos para manter integridade referencial com FKs.
+Filtra registros orfãos para manter integridade referencial com FKs.
 Uso: python data/migrate.py
 Requer: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env
 """
@@ -22,18 +22,19 @@ import sqlite3
 
 client = create_client(URL, KEY)
 LEGACY_DB = Path(__file__).resolve().parent.parent / "data" / "escola_ativa.db"
+con = sqlite3.connect(str(LEGACY_DB))
 con.row_factory = sqlite3.Row
 cur = con.cursor()
 
 LEGACY_MAP = {
-    "users": "app_users", "classes": "classes", "subjects": "subjects",
+    "users": "users", "classes": "classes", "subjects": "subjects",
     "class_subjects": "class_subjects", "student_enrollments": "student_enrollments",
     "lessons": "lessons", "quizzes": "quizzes", "quiz_questions": "quiz_questions",
     "assessments": "assessments", "assessment_questions": "assessment_questions",
     "student_assessments": "student_assessments",
     "student_assessment_answers": "student_assessment_answers",
     "attendance": "attendance", "forum_posts": "forum_posts",
-    "weekly_schedule": "weekly_schedule",
+    "weekly_schedule": "weekly_schedule", "user_history": "user_history",
 }
 
 def g(row, key, default=""):
@@ -58,7 +59,6 @@ def migrate(table, columns, batch_size=100, fk_checks=None):
         print(f"  [SKIP] {table} vazio")
         return
 
-    # Filtra registros com FK inválida
     if fk_checks:
         valid_rows = []
         for row in all_rows:
@@ -74,7 +74,7 @@ def migrate(table, columns, batch_size=100, fk_checks=None):
 
     total = len(all_rows)
     if not total:
-        print(f"  [SKIP] {table} todos os registros sao orfãos")
+        print(f"  [SKIP] {table} todos os registros sao orfaos")
         return
     ok = 0
     for i in range(0, total, batch_size):
@@ -87,9 +87,8 @@ def migrate(table, columns, batch_size=100, fk_checks=None):
                 pass
     print(f"  [OK] {table}: {ok}/{total}")
 
-print("Iniciando migracao (com FKs, filtrando orfãos)...\n")
+print("Iniciando migracao (com FKs, filtrando orfaos)...\n")
 
-# 1. Tabelas raiz (sem dependências)
 print("[users]")
 migrate("users", ["username", "name", "ra", "role", "is_active", "password_hash"])
 
@@ -99,7 +98,6 @@ migrate("classes", ["id", "name", "code", "official_name", "school_id", "tipo_tu
 print("[subjects]")
 migrate("subjects", ["id", "name", "type", "aliases", "group_type", "carga_horaria", "duration_type", "lessons_per_week", "max_hours", "status", "folder_name", "is_active"])
 
-# 2. Tabelas que dependem de classes e subjects
 print("[class_subjects]")
 migrate("class_subjects", ["id", "class_id", "subject_id", "is_active"],
         fk_checks=[("class_id", "classes"), ("subject_id", "subjects")])
@@ -112,12 +110,11 @@ print("[lessons]")
 migrate("lessons", ["id", "subject_id", "title", "description", "full_content", "objective", "resources", "video_url", "week", "status", "uuid"],
         fk_checks=[("subject_id", "subjects")])
 
-# 3. Tabelas que dependem de users, classes, subjects, lessons
 print("[quizzes]")
 migrate("quizzes", ["id", "lesson_id", "title"],
         fk_checks=[("lesson_id", "lessons")])
 
-print("[quiz_questions] (JSON)")
+print("[quiz_questions]")
 migrate("quiz_questions", ["id", "quiz_id", "question_text", "question_type", "options", "correct_option_index"],
         fk_checks=[("quiz_id", "quizzes")])
 
@@ -125,7 +122,7 @@ print("[assessments]")
 migrate("assessments", ["id", "subject_id", "title", "type"],
         fk_checks=[("subject_id", "subjects")])
 
-print("[assessment_questions] (JSON)")
+print("[assessment_questions]")
 migrate("assessment_questions", ["id", "assessment_id", "question_text", "question_type", "options", "correct_option_index"],
         fk_checks=[("assessment_id", "assessments")])
 
@@ -137,7 +134,6 @@ print("[student_assessment_answers]")
 migrate("student_assessment_answers", ["id", "submission_id", "question_id", "answer_text", "answer_link", "selected_option_index"],
         fk_checks=[("submission_id", "student_assessments"), ("question_id", "assessment_questions")])
 
-# 4. Tabelas de dados (attendance, forum_posts)
 print("[attendance]")
 migrate("attendance", ["class_name", "subject_id", "student_name", "student_number", "is_present", "status", "class_id", "date", "professor_name"],
         fk_checks=[("subject_id", "subjects"), ("class_id", "classes")])
@@ -150,7 +146,8 @@ print("[weekly_schedule]")
 migrate("weekly_schedule", ["class_id", "class_name", "day_of_week", "time_slot", "subject_name", "professor_name"],
         fk_checks=[("class_id", "classes")])
 
-print("\n[user_history] - mantido no SQLite local")
+print("[user_history]")
+migrate("user_history", ["id", "username", "activity", "timestamp"])
 
 con.close()
 print("\nMigracao concluida!")

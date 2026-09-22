@@ -2,8 +2,8 @@
 -- SYSAVA - Schema Supabase (Fonte de Verdade)
 -- Banco de dados enxuto e normalizado para AVA
 -- ============================================================
--- Este schema substitui as 21 tabelas legadas por 17 tabelas
--- normalizadas. Remove: historico_aulas, master_config, schedules,
+-- Este schema substitui as 21 tabelas legadas por 18 tabelas
+-- normalizadas (inclui user_history). Remove: historico_aulas, master_config, schedules,
 -- schools, user_profiles, user_reminders, settings, planejamento.
 -- ============================================================
 
@@ -260,7 +260,20 @@ CREATE INDEX IF NOT EXISTS idx_weekly_schedule_class ON weekly_schedule(class_id
 CREATE INDEX IF NOT EXISTS idx_weekly_schedule_day ON weekly_schedule(day_of_week);
 
 -- ---------------------------------------------------------
--- 16. qualitative_points (pontos qualitativos)
+-- 16. user_history (historico de atividades)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_history (
+    id         SERIAL PRIMARY KEY,
+    username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    activity   TEXT NOT NULL,
+    timestamp  TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_history_username ON user_history(username);
+CREATE INDEX IF NOT EXISTS idx_user_history_timestamp ON user_history(timestamp);
+
+-- ---------------------------------------------------------
+-- 17. qualitative_points (pontos qualitativos)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS qualitative_points (
     id          SERIAL PRIMARY KEY,
@@ -351,6 +364,7 @@ GROUP BY class_name, subject_id, student_name;
 -- ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE forum_posts ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE weekly_schedule ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE user_history ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE qualitative_points ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE student_grades ENABLE ROW LEVEL SECURITY;
 --

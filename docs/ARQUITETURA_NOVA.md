@@ -37,7 +37,7 @@
 | **Sync Incremental** | Só baixa o que mudou desde o último sync |
 | **RLS Ativo** | Cada usuário só vê seus próprios dados |
 
-## 17 Tabelas do Novo Schema
+## 18 Tabelas do Novo Schema
 
 ### Entidades Principais
 | # | Tabela | Descrição | Registros (local) |
@@ -53,14 +53,15 @@
 | 9 | `assessments` | Avaliações (MN1, MN2, MN3) | 15 |
 | 10 | `assessment_questions` | Questões das avaliações | 135 |
 | 11 | `student_assessments` | Submissões e notas | 388 |
-| 12 | `student_assessment_answers` | Respostas | 3,583 |
+| 12 | `student_assessment_answers` | Respostas | 3,167 |
 | 13 | `attendance` | Frequência | 488 |
-| 14 | `forum_posts` | Posts do fórum | 3,669 |
+| 14 | `forum_posts` | Posts do fórum | 3,626 |
 | 15 | `weekly_schedule` | Grade semanal | 22 |
-| 16 | `qualitative_points` | Pontos qualitativos | (local) |
-| 17 | `student_grades` | Notas calculadas | (local) |
+| 16 | `user_history` | Histórico de atividades | 13,547 |
+| 17 | `qualitative_points` | Pontos qualitativos | (local) |
+| 18 | `student_grades` | Notas calculadas | (local) |
 
-### Tabelas Eliminadas (14 → 17)
+### Tabelas Eliminadas (14 → 18)
 | Tabela Removida | Motivo |
 |-----------------|--------|
 | `historico_aulas` | Derivado de `user_history` |

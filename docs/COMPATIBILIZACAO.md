@@ -18,7 +18,7 @@ escola_ativa_legado.db  ->  escola_ativa.db  ->  Supabase
 ## Fase 2: Limpeza (concluída)
 
 - `data/prepare_clean_db.py` cria `escola_ativa.db` filtrando registros com FK inválida
-- Resultado: 1,657 registros válidos de 10 tabelas
+- Resultado: 1,657 registros válidos de 11 tabelas
 - 1,018 registros órfãos ficam preservados no legado
 
 ## Fase 3: Compatibilização (pendente)
@@ -116,6 +116,7 @@ python data/migrate.py
 | weekly_schedule | 22 |
 | user_history | 13,547 |
 | **Total** | **~24,000** |
+| user_history | 13,547 | legado histórico de aulas |
 
 ## Notas Importantes
 

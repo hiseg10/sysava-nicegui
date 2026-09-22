@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS attendance (
 CREATE TABLE IF NOT EXISTS forum_posts (
     id          SERIAL PRIMARY KEY,
     lesson_id   INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
-    user_name   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_name   TEXT NOT NULL,
     message     TEXT NOT NULL,
     created_at  TEXT DEFAULT CURRENT_TIMESTAMP
 );

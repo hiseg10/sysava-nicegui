@@ -233,7 +233,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_name, da
 CREATE TABLE IF NOT EXISTS forum_posts (
     id          SERIAL PRIMARY KEY,
     lesson_id   INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
-    user_name   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_name   TEXT NOT NULL,
     message     TEXT NOT NULL,
     created_at  TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -372,4 +372,12 @@ GROUP BY class_name, subject_id, student_name;
 -- Alunos: SELECT em tudo (próprios dados)
 -- Professores: SELECT/INSERT/UPDATE em dados da turma
 -- Admin: Tudo (SELECT/INSERT/UPDATE/DELETE em tudo)
+-- ============================================================
+
+-- ============================================================
+-- CORRECAO (rodar se o schema antigo ja foi aplicado):
+-- Remove a FK errada de forum_posts.user_name (nome de exibicao,
+-- nao referencia de usuario - aceita bots e nomes historicos).
+-- ============================================================
+-- ALTER TABLE forum_posts DROP CONSTRAINT IF EXISTS forum_posts_user_name_fkey;
 -- ============================================================

@@ -1,188 +1,148 @@
 """
-Script de migração: escola_ativa.db (legado) → Supabase (novo schema).
-Gera data/migrate.sql com INSERTs prontos para o SQL Editor do Supabase.
+Migra dados do escola_ativa.db para o Supabase via API.
 Uso: python data/migrate.py
+Requer: SUPABASE_URL e SUPABASE_KEY no .env
 """
-import sqlite3, json
+import os, sys
+from pathlib import Path
+from dotenv import dotenv_values
+
+# Carrega credenciais
+env_file = Path(__file__).resolve().parent.parent / ".env"
+valores = dotenv_values(str(env_file))
+URL = os.environ.get("SUPABASE_URL") or valores.get("SUPABASE_URL")
+KEY = os.environ.get("SUPABASE_KEY") or valores.get("SUPABASE_KEY")
+
+if not URL or not KEY:
+    print("ERRO: Defina SUPABASE_URL e SUPABASE_KEY")
+    sys.exit(1)
+
+from supabase import create_client
+import sqlite3
 from pathlib import Path
 
+client = create_client(URL, KEY)
 LEGACY_DB = Path(__file__).resolve().parent.parent / "data" / "escola_ativa.db"
-OUTPUT_SQL = Path(__file__).resolve().parent / "migrate.sql"
-
 con = sqlite3.connect(str(LEGACY_DB))
 con.row_factory = sqlite3.Row
 cur = con.cursor()
-lines = []
 
-def g(row, key, default=""):
-    try:
-        v = row[key]
-        return v if v is not None else default
-    except (KeyError, TypeError):
-        return default
 
-def escape(val):
-    if val is None: return "NULL"
-    if isinstance(val, str): return "'" + val.replace("'", "''") + "'"
-    if isinstance(val, (int, float)): return str(val)
-    if isinstance(val, (list, dict)):
-        return "'" + json.dumps(val, ensure_ascii=False).replace("'", "''") + "'"
-    return str(val)
+def migrate(table: str, columns: list, batch_size: int = 100):
+    """Lê do SQLite e faz upsert no Supabase em batches."""
+    rows = [dict(r) for r in cur.execute(f"SELECT * FROM {table}").fetchall()]
+    if not rows:
+        print(f"  [SKIP] {table} vazio")
+        return
+    total = len(rows)
+    ok = 0
+    for i in range(0, total, batch_size):
+        batch = rows[i:i + batch_size]
+        try:
+            for row in batch:
+                data = {c: row.get(c) for c in columns}
+                resp = client.table(table).upsert(data).execute()
+                ok += 1
+        except Exception as e:
+            print(f"  [ERRO] {table} lote {i}: {e}")
+    print(f"  [OK] {table}: {ok}/{total}")
 
-def insert(table, rows, cols):
-    if not rows: return
-    lines.append(f"-- {len(rows)} registros em {table}")
-    c = ", ".join(cols)
-    for r in rows:
-        v = ", ".join(escape(r.get(c2, "")) for c2 in cols)
-        lines.append(f"INSERT INTO {table} ({c}) VALUES ({v});")
-    lines.append("")
 
-# users
-lines.append("-- ========================================================")
-lines.append("-- users (de app_users)")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM app_users").fetchall()]
-insert("users", rows, ["username","name","ra","role","is_active","password_hash","created_at","updated_at"])
+def migrate_json(table: str, columns: list, json_cols: list, batch_size: int = 50):
+    """Igual migrate() mas converte colunas JSON antes de enviar."""
+    rows = [dict(r) for r in cur.execute(f"SELECT * FROM {table}").fetchall()]
+    if not rows:
+        print(f"  [SKIP] {table} vazio")
+        return
+    total = len(rows)
+    ok = 0
+    for i in range(0, total, batch_size):
+        batch = rows[i:i + batch_size]
+        try:
+            for row in batch:
+                data = {c: row.get(c) for c in columns}
+                for jc in json_cols:
+                    if jc in data and isinstance(data[jc], str):
+                        import json
+                        try:
+                            data[jc] = json.loads(data[jc])
+                        except (json.JSONDecodeError, ValueError):
+                            pass
+                resp = client.table(table).upsert(data).execute()
+                ok += 1
+        except Exception as e:
+            print(f"  [ERRO] {table} lote {i}: {e}")
+    print(f"  [OK] {table}: {ok}/{total}")
 
-# classes
-lines.append("-- ========================================================")
-lines.append("-- classes")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM classes").fetchall()]
-insert("classes", rows, ["id","name","code","official_name","school_id","tipo_turma","ano_letivo","is_active","created_at","updated_at"])
 
-# subjects
-lines.append("-- ========================================================")
-lines.append("-- subjects")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM subjects").fetchall()]
-insert("subjects", rows, ["id","name","type","aliases","group_type","carga_horaria","duration_type","lessons_per_week","max_hours","status","folder_name","is_active","created_at","updated_at"])
+# ========================================================
+# Migrações por tabela
+# ========================================================
+print("Iniciando migracao...")
 
-# class_subjects
-lines.append("-- ========================================================")
-lines.append("-- class_subjects")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM class_subjects").fetchall()]
-insert("class_subjects", rows, ["id","class_id","subject_id","is_active","created_at"])
+print("\n[users]")
+migrate("users", ["username", "name", "ra", "role", "is_active", "password_hash"])
 
-# student_enrollments
-lines.append("-- ========================================================")
-lines.append("-- student_enrollments")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM student_enrollments").fetchall()]
-insert("student_enrollments", rows, ["class_id","user_username","enrolled_at"])
+print("\n[classes]")
+migrate("classes", ["id", "name", "code", "official_name", "school_id",
+                     "tipo_turma", "ano_letivo", "is_active"])
 
-# lessons
-lines.append("-- ========================================================")
-lines.append("-- lessons")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM lessons").fetchall()]
-insert("lessons", rows, ["id","subject_id","title","description","full_content","objective","resources","video_url","week","status","uuid","created_at","updated_at"])
+print("\n[subjects]")
+migrate("subjects", ["id", "name", "type", "aliases", "group_type", "carga_horaria",
+                      "duration_type", "lessons_per_week", "max_hours", "status",
+                      "folder_name", "is_active"])
 
-# quizzes
-lines.append("-- ========================================================")
-lines.append("-- quizzes")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM quizzes").fetchall()]
-insert("quizzes", rows, ["id","lesson_id","title","created_at"])
+print("\n[class_subjects]")
+migrate("class_subjects", ["id", "class_id", "subject_id", "is_active"])
 
-# quiz_questions
-lines.append("-- ========================================================")
-lines.append("-- quiz_questions")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM quiz_questions").fetchall()]
-insert("quiz_questions", rows, ["id","quiz_id","question_text","question_type","options","correct_option_index","created_at"])
+print("\n[student_enrollments]")
+migrate("student_enrollments", ["class_id", "user_username"])
 
-# assessments
-lines.append("-- ========================================================")
-lines.append("-- assessments")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM assessments").fetchall()]
-insert("assessments", rows, ["id","subject_id","title","type","created_at","updated_at"])
+print("\n[lessons]")
+migrate("lessons", ["id", "subject_id", "title", "description", "full_content",
+                     "objective", "resources", "video_url", "week", "status",
+                     "uuid"])
 
-# assessment_questions
-lines.append("-- ========================================================")
-lines.append("-- assessment_questions")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM assessment_questions").fetchall()]
-insert("assessment_questions", rows, ["id","assessment_id","question_text","question_type","options","correct_option_index","created_at"])
+print("\n[quizzes]")
+migrate("quizzes", ["id", "lesson_id", "title"])
 
-# student_assessments
-lines.append("-- ========================================================")
-lines.append("-- student_assessments")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM student_assessments").fetchall()]
-insert("student_assessments", rows, ["id","assessment_id","user_username","score","status","submitted_at","created_at"])
+print("\n[quiz_questions] (JSON)")
+migrate_json("quiz_questions", ["id", "quiz_id", "question_text", "question_type",
+                                 "options", "correct_option_index"],
+              ["options"])
 
-# student_assessment_answers
-lines.append("-- ========================================================")
-lines.append("-- student_assessment_answers")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM student_assessment_answers").fetchall()]
-insert("student_assessment_answers", rows, ["id","submission_id","question_id","answer_text","answer_link","selected_option_index","created_at"])
+print("\n[assessments]")
+migrate("assessments", ["id", "subject_id", "title", "type"])
 
-# attendance
-lines.append("-- ========================================================")
-lines.append("-- attendance")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM attendance").fetchall()]
-insert("attendance", rows, ["class_name","subject_id","student_name","student_number","is_present","status","class_id","date","professor_name","created_at"])
+print("\n[assessment_questions] (JSON)")
+migrate_json("assessment_questions", ["id", "assessment_id", "question_text",
+                                        "question_type", "options",
+                                        "correct_option_index"],
+              ["options"])
 
-# forum_posts
-lines.append("-- ========================================================")
-lines.append("-- forum_posts")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM forum_posts").fetchall()]
-insert("forum_posts", rows, ["lesson_id","user_name","message","created_at"])
+print("\n[student_assessments]")
+migrate("student_assessments", ["id", "assessment_id", "user_username",
+                                 "score", "status", "submitted_at"])
 
-# weekly_schedule
-lines.append("-- ========================================================")
-lines.append("-- weekly_schedule")
-lines.append("-- ========================================================")
-rows = [dict(r) for r in cur.execute("SELECT * FROM weekly_schedule").fetchall()]
-insert("weekly_schedule", rows, ["class_id","class_name","day_of_week","time_slot","subject_name","professor_name","created_at"])
+print("\n[student_assessment_answers] (JSON)")
+migrate_json("student_assessment_answers", ["id", "submission_id", "question_id",
+                                              "answer_text", "answer_link",
+                                              "selected_option_index"],
+              [])
 
-# qualitative_points placeholder
-lines.append("-- ========================================================")
-lines.append("-- qualitative_points (novo - popul via sync)")
-lines.append("-- ========================================================")
-lines.append("")
+print("\n[attendance]")
+migrate("attendance", ["class_name", "subject_id", "student_name", "student_number",
+                        "is_present", "status", "class_id", "date", "professor_name"])
 
-# student_grades placeholder
-lines.append("-- ========================================================")
-lines.append("-- student_grades (novo - gerado via scores.py)")
-lines.append("-- ========================================================")
-lines.append("")
+print("\n[forum_posts]")
+migrate("forum_posts", ["lesson_id", "user_name", "message"])
 
-# RLS
-lines.append("-- ========================================================")
-lines.append("-- RLS")
-lines.append("-- ========================================================")
-lines.append("""
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE class_subjects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_enrollments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lessons ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE assessments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE assessment_questions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_assessments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_assessment_answers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE forum_posts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE weekly_schedule ENABLE ROW LEVEL SECURITY;
-ALTER TABLE qualitative_points ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_grades ENABLE ROW LEVEL SECURITY;
-""")
+print("\n[weekly_schedule]")
+migrate("weekly_schedule", ["class_id", "class_name", "day_of_week", "time_slot",
+                             "subject_name", "professor_name"])
 
-sql = "\n".join(lines)
-OUTPUT_SQL.write_text(sql, encoding="utf-8")
-print(f"OK {OUTPUT_SQL} gerado ({len(lines)} linhas)")
-print("\nOrdem no Supabase SQL Editor:")
-print("  1. schema_supabase.sql (cria tabelas)")
-print("  2. migrate.sql (popula dados)")
+print("\n[user_history] (não sincronizado - local apenas)")
+print("  [SKIP] user_history mantido no SQLite local")
+
 con.close()
+print("\nMigracao concluida!")

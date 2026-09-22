@@ -227,11 +227,16 @@ def insert(table, columns, rows):
     con_clean.commit()
     return inserted
 
-def migrate_table(supabase_table, legacy_table, columns, fk_checks=None):
+def migrate_table(supabase_table, legacy_table, columns, fk_checks=None, col_map=None):
     all_rows = [dict(r) for r in cur_leg.execute(f"SELECT * FROM {legacy_table}").fetchall()]
     if not all_rows:
         print(f"  [SKIP] {legacy_table} vazio")
         return
+    if col_map:
+        for row in all_rows:
+            for clean_col, legacy_col in col_map.items():
+                if legacy_col in row and clean_col not in row:
+                    row[clean_col] = row.pop(legacy_col)
     if fk_checks:
         valid = []
         for row in all_rows:
@@ -252,7 +257,8 @@ def migrate_table(supabase_table, legacy_table, columns, fk_checks=None):
 print("\n=== MIGRACAO ===\n")
 
 print("[users]")
-migrate_table("users", "app_users", ["username","name","ra","role","is_active","password_hash"])
+migrate_table("users", "app_users", ["username","name","ra","role","is_active","password_hash"],
+              col_map={"password_hash": "password"})
 
 print("[classes]")
 migrate_table("classes", "classes", ["id","name","code","official_name","school_id","tipo_turma","ano_letivo","is_active"])

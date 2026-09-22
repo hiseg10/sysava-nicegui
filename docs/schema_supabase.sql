@@ -71,8 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_subjects_type ON subjects(type);
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS class_subjects (
     id          SERIAL PRIMARY KEY,
-    class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-    subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    class_id    INTEGER NOT NULL,
+    subject_id  INTEGER NOT NULL,
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(class_id, subject_id)
@@ -85,10 +85,10 @@ CREATE INDEX IF NOT EXISTS idx_class_subjects_subject ON class_subjects(subject_
 -- 5. student_enrollments (matrículas)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS student_enrollments (
-    id          SERIAL PRIMARY KEY,
-    class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-    user_username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-    enrolled_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    id              SERIAL PRIMARY KEY,
+    class_id        INTEGER NOT NULL,
+    user_username   TEXT NOT NULL,
+    enrolled_at     TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(class_id, user_username)
 );
 
@@ -100,7 +100,7 @@ CREATE INDEX IF NOT EXISTS idx_enrollments_user ON student_enrollments(user_user
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS lessons (
     id          SERIAL PRIMARY KEY,
-    subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    subject_id  INTEGER NOT NULL,
     title       TEXT NOT NULL,
     description TEXT DEFAULT '',
     full_content TEXT DEFAULT '',
@@ -122,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_lessons_week ON lessons(week);
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS quizzes (
     id          SERIAL PRIMARY KEY,
-    lesson_id   INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+    lesson_id   INTEGER NOT NULL,
     title       TEXT NOT NULL,
     created_at  TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -134,7 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_quizzes_lesson ON quizzes(lesson_id);
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS quiz_questions (
     id                  SERIAL PRIMARY KEY,
-    quiz_id             INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    quiz_id             INTEGER NOT NULL,
     question_text       TEXT NOT NULL,
     question_type       TEXT NOT NULL DEFAULT 'objective',
     options             TEXT DEFAULT '[]',
@@ -149,7 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quiz_id);
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS assessments (
     id          SERIAL PRIMARY KEY,
-    subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    subject_id  INTEGER NOT NULL,
     title       TEXT NOT NULL,
     type        TEXT NOT NULL DEFAULT 'MN1',
     created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -164,7 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_assessments_type ON assessments(type);
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS assessment_questions (
     id                      SERIAL PRIMARY KEY,
-    assessment_id           INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+    assessment_id           INTEGER NOT NULL,
     question_text           TEXT NOT NULL,
     question_type           TEXT NOT NULL DEFAULT 'objective',
     options                 TEXT DEFAULT '[]',
@@ -179,8 +179,8 @@ CREATE INDEX IF NOT EXISTS idx_assessment_questions_assessment ON assessment_que
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS student_assessments (
     id              SERIAL PRIMARY KEY,
-    assessment_id   INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    assessment_id   INTEGER NOT NULL,
+    user_username   TEXT NOT NULL,
     score           REAL,
     status          TEXT NOT NULL DEFAULT 'pendente',
     submitted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -196,8 +196,8 @@ CREATE INDEX IF NOT EXISTS idx_student_assessments_user ON student_assessments(u
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS student_assessment_answers (
     id                  SERIAL PRIMARY KEY,
-    submission_id       INTEGER NOT NULL REFERENCES student_assessments(id) ON DELETE CASCADE,
-    question_id         INTEGER NOT NULL REFERENCES assessment_questions(id) ON DELETE CASCADE,
+    submission_id       INTEGER NOT NULL,
+    question_id         INTEGER NOT NULL,
     answer_text         TEXT DEFAULT '',
     answer_link         TEXT DEFAULT '',
     selected_option_index INTEGER,
@@ -212,12 +212,12 @@ CREATE INDEX IF NOT EXISTS idx_student_assessment_answers_submission ON student_
 CREATE TABLE IF NOT EXISTS attendance (
     id              SERIAL PRIMARY KEY,
     class_name      TEXT NOT NULL,
-    subject_id      INTEGER REFERENCES subjects(id),
+    subject_id      INTEGER,
     student_name    TEXT NOT NULL,
     student_number  INTEGER DEFAULT 0,
     is_present      BOOLEAN NOT NULL DEFAULT TRUE,
     status          TEXT NOT NULL DEFAULT 'Presente',
-    class_id        INTEGER REFERENCES classes(id),
+    class_id        INTEGER,
     date            TEXT NOT NULL,
     professor_name  TEXT DEFAULT '',
     created_at      TEXT DEFAULT CURRENT_TIMESTAMP
@@ -232,8 +232,8 @@ CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_name, da
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS forum_posts (
     id          SERIAL PRIMARY KEY,
-    lesson_id   INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
-    user_name   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    lesson_id   INTEGER,
+    user_name   TEXT NOT NULL,
     message     TEXT NOT NULL,
     created_at  TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -246,7 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_forum_posts_user ON forum_posts(user_name);
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS weekly_schedule (
     id          SERIAL PRIMARY KEY,
-    class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    class_id    INTEGER NOT NULL,
     class_name  TEXT NOT NULL,
     day_of_week TEXT NOT NULL,
     time_slot   TEXT NOT NULL,
@@ -264,8 +264,8 @@ CREATE INDEX IF NOT EXISTS idx_weekly_schedule_day ON weekly_schedule(day_of_wee
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS qualitative_points (
     id          SERIAL PRIMARY KEY,
-    user_username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-    subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    user_username TEXT NOT NULL,
+    subject_id  INTEGER NOT NULL,
     points      REAL NOT NULL DEFAULT 0,
     notes       TEXT DEFAULT '',
     date        TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -280,7 +280,7 @@ CREATE INDEX IF NOT EXISTS idx_qualitative_subject ON qualitative_points(subject
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS student_grades (
     id              SERIAL PRIMARY KEY,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL,
     class_name      TEXT NOT NULL,
     subject         TEXT NOT NULL,
     trimester       INTEGER NOT NULL DEFAULT 1,

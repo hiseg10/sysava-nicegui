@@ -152,6 +152,13 @@ CREATE TABLE weekly_schedule (
 CREATE INDEX IF NOT EXISTS idx_weekly_schedule_class ON weekly_schedule(class_id);
 CREATE INDEX IF NOT EXISTS idx_weekly_schedule_day ON weekly_schedule(day_of_week);
 
+CREATE TABLE user_history (
+    id INTEGER PRIMARY KEY, username TEXT NOT NULL, activity TEXT NOT NULL,
+    timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_user_history_username ON user_history(username);
+CREATE INDEX IF NOT EXISTS idx_user_history_timestamp ON user_history(timestamp);
+
 CREATE TABLE qualitative_points (
     id INTEGER PRIMARY KEY, user_username TEXT NOT NULL, subject_id INTEGER NOT NULL,
     points REAL NOT NULL DEFAULT 0, notes TEXT DEFAULT '', date TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -301,8 +308,11 @@ print("[weekly_schedule]")
 migrate_table("weekly_schedule", "weekly_schedule", ["class_id","class_name","day_of_week","time_slot","subject_name","professor_name"],
               fk_checks=[("class_id","classes")])
 
+print("[user_history]")
+migrate_table("user_history", "user_history", ["id","username","activity","timestamp"])
+
 print("\n=== VERIFICACAO ===")
-for table in ["users","classes","subjects","lessons","quizzes","assessments","forum_posts"]:
+for table in ["users","classes","subjects","lessons","quizzes","assessments","forum_posts","user_history"]:
     count = cur_clean.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     print(f"  {table}: {count}")
 
@@ -310,3 +320,4 @@ con_clean.close()
 con_leg.close()
 print("\n[OK] escola_ativa.db criado com dados limpos")
 print("    escola_ativa_legado.db preservado com dados orfaos")
+print("    Usar data/prepare_clean_db.py para compatibilizar dados orfaos")

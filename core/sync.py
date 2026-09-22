@@ -20,6 +20,7 @@ Uso típico:
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -159,6 +160,19 @@ def _mascarar(valor: str) -> str:
     return f"{valor[:4]}...{valor[-4:]}"
 
 
+def _papel_chave(key: str) -> str:
+    """Extrai o campo `role` do payload JWT (anon / service_role) sem expor a chave."""
+    try:
+        partes = (key or "").split(".")
+        if len(partes) < 2:
+            return "?"
+        payload = partes[1] + "=" * (-len(partes[1]) % 4)
+        dados = json.loads(base64.urlsafe_b64decode(payload))
+        return str(dados.get("role") or "?")
+    except Exception:
+        return "?"
+
+
 def _erro_credenciais_ausentes(cred: dict) -> str:
     """Mensagem de erro apontando a fonte correta conforme o ambiente."""
     base = "Credenciais do Supabase ausentes. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY "
@@ -179,8 +193,12 @@ def descrever_conexao() -> dict:
         "env_existe": Path(cred["env_file"]).exists(),
         "host": host,
         "chave": _mascarar(cred["key"]),
+        "papel": _papel_chave(cred["key"]),
         "ambiente": cred["ambiente"],
         "origem": cred["origem"],
+        "tem_service_role_env": bool(
+            (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+        ),
     }
 
 
@@ -245,6 +263,15 @@ def esquema_remoto(recarregar: bool = False) -> dict[str, list[str]]:
                 },
                 timeout=30,
             )
+            if resposta.status_code == 401:
+                papel = _papel_chave(cred["key"])
+                raise SyncError(
+                    f"401 ao listar tabelas do Supabase (papel da chave: {papel}, "
+                    f"origem: {cred['origem']}). "
+                    "O endpoint /rest/v1/ exige SUPABASE_SERVICE_ROLE_KEY — "
+                    "no servidor configure em Render → Environment; "
+                    "localmente no .env."
+                )
             resposta.raise_for_status()
             definicoes = (resposta.json() or {}).get("definitions", {})
             _esquema_cache = {

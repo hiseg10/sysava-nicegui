@@ -107,6 +107,21 @@ def _sync_inicial():
             if not info.get("configurado"):
                 log.warning("Supabase não configurado — sync inicial ignorado.")
             else:
+                log.info(
+                    "Conexão: ambiente=%s origem=%s host=%s chave=%s papel=%s",
+                    info.get("ambiente"),
+                    info.get("origem"),
+                    info.get("host"),
+                    info.get("chave"),
+                    info.get("papel"),
+                )
+                if info.get("ambiente") == "servidor" and info.get("papel") != "service_role":
+                    log.warning(
+                        "SUPABASE_SERVICE_ROLE_KEY ausente ou inválida no servidor "
+                        "(papel atual: %s). O /rest/v1/ retornará 401 — copie a chave "
+                        "service_role do Supabase (Settings → API) para Render → Environment.",
+                        info.get("papel"),
+                    )
                 log.info("Banco vazio — iniciando sync completo do Supabase...")
                 resultado = sync.sincronizar(modo="full", backup=False)
                 totais = (resultado or {}).get("totais") or {}

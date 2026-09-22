@@ -109,6 +109,9 @@ def sync_page() -> None:
                 with ui.row().classes("items-baseline gap-2"):
                     ui.label("Chave:").classes("text-grey-7")
                     ui.label(info["chave"] or "-").classes("font-medium")
+                with ui.row().classes("items-baseline gap-2"):
+                    ui.label("Papel:").classes("text-grey-7")
+                    ui.label(info.get("papel") or "-").classes("font-medium")
 
             if not info["configurado"]:
                 if info.get("ambiente") == "servidor":

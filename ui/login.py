@@ -1,7 +1,7 @@
 """
 Página de login do SysAVA.
 
-Aceita RA ou usuário + senha (bcrypt em `app_users`). Após autenticar, grava o
+Aceita RA ou usuário + senha (bcrypt em `users`). Após autenticar, grava o
 acesso em `user_history` e redireciona para a rota inicial do papel (ou para o
 destino que o usuário tentou acessar).
 """

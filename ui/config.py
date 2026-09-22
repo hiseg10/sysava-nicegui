@@ -85,30 +85,6 @@ def config_page() -> None:
 
     painel_settings()
 
-    # --- master_config --------------------------------------------------------
-    ui.separator().classes("q-mt-lg")
-    itens_master = settings.listar_master_config()
-    ui.label(f"Configurações mestras ({len(itens_master)})").classes("text-h6")
-    if not itens_master:
-        ui.label("Nenhuma configuração mestra encontrada.").classes("text-grey-7")
-    else:
-        for item in itens_master:
-            with ui.expansion(f"{item['key']}  ·  {item['resumo']}", icon="settings").classes("w-full max-w-5xl"):
-                valor = settings.obter_master_config(item["key"])
-                dado = parsing.para_dict(valor) or parsing.para_lista(valor)
-                if dado:
-                    texto = json.dumps(dado, ensure_ascii=False, indent=2)
-                else:
-                    texto = str(valor or "")
-                ui.code(texto[:20000]).classes("w-full").style("max-height: 24rem; overflow: auto")
-                ui.button(
-                    "Baixar JSON",
-                    icon="download",
-                    on_click=lambda k=item["key"], v=texto: ui.download(
-                        v.encode("utf-8"), f"{k}"
-                    ),
-                ).props("outline dense")
-
     layout.rodape_navegacao(
         ("Sincronização", "cloud_sync", "/sync"),
         ("Banco de Dados", "storage", "/database"),

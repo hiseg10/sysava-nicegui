@@ -13,3 +13,9 @@ services:
         sync: false
       - key: STORAGE_SECRET
         generateValue: true
+      - key: SYSAVA_DB_PATH
+        value: /data/escola_ativa.db
+    volumes:
+      - type: disk
+        name: sysava-data
+        path: /data

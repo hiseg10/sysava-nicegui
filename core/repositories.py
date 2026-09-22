@@ -154,7 +154,7 @@ def listar_disciplinas_da_turma(class_id, apenas_ativas: bool = False) -> list[d
 
 def listar_alunos_da_turma(class_id) -> list[dict]:
     return _consultar(
-        "SELECT u.* FROM app_users u "
+        "SELECT u.* FROM users u "
         "JOIN student_enrollments e ON e.user_username = u.username "
         "WHERE e.class_id = ? ORDER BY u.name",
         (str(class_id),),
@@ -166,7 +166,7 @@ def listar_matriculas() -> list[dict]:
 
 
 def obter_aluno(username) -> dict | None:
-    return _consultar_um("SELECT * FROM app_users WHERE username = ?", (str(username),))
+    return _consultar_um("SELECT * FROM users WHERE username = ?", (str(username),))
 
 
 def contexto_aluno(username) -> dict:
@@ -323,10 +323,10 @@ def obter_setting(chave: str, padrao=None):
 def contagens_gerais() -> dict[str, int]:
     """Contagem de registros das principais tabelas (para dashboards)."""
     tabelas = [
-        "app_users", "classes", "subjects", "lessons", "quizzes", "quiz_questions",
+        "users", "classes", "subjects", "lessons", "quizzes", "quiz_questions",
         "assessments", "assessment_questions", "attendance", "student_enrollments",
-        "student_grades", "qualitative_points", "forum_posts", "historico_aulas",
-        "planejamento", "weekly_schedule",
+        "student_grades", "qualitative_points", "forum_posts",
+        "weekly_schedule",
     ]
     contagens: dict[str, int] = {}
     try:

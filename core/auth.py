@@ -1,8 +1,8 @@
 """
 Autenticação e autorização do SysAVA (SQLite local).
 
-As senhas em `app_users` são hashes bcrypt. O login aceita o `username` ou o
-`ra`. Os papéis vêm de `app_users.role`: `admin`, `teacher` ou `student`.
+As senhas em `users` são hashes bcrypt. O login aceita o `username` ou o
+    `ra`. Os papéis vêm de `users.role`: `admin`, `teacher` ou `student`.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ ROTA_INICIAL = {
 
 _STATUS_INATIVO = {"inactive", "inativo", "bloqueado", "suspenso", "desativado"}
 
-SECRET_PATH = db.PROJETO_DIR / "data" / "storage_secret.txt"
+SECRET_PATH = Path(os.environ.get("SYSAVA_STORAGE_SECRET_PATH", ""))
 
 log = logging.getLogger("sysava.auth")
 
@@ -56,27 +56,18 @@ log = logging.getLogger("sysava.auth")
 def storage_secret() -> str:
     """
     Segredo do `ui.run(storage_secret=...)`.
-
-    Usa `SYSAVA_STORAGE_SECRET` se definido; senão lê/gera
-    `data/storage_secret.txt` (uma única vez, para não invalidar sessões a cada
-    reinício).
+    Usa `SYSAVA_STORAGE_SECRET` se definido; senão gera um novo.
     """
     ambiente = os.environ.get("SYSAVA_STORAGE_SECRET")
     if ambiente:
         return ambiente
-    if SECRET_PATH.exists():
+    ambiente = os.environ.get("SYSAVA_STORAGE_SECRET_PATH")
+    if ambiente and Path(ambiente).exists():
         try:
-            valor = SECRET_PATH.read_text(encoding="utf-8").strip()
-            if valor:
-                return valor
+            return Path(ambiente).read_text(encoding="utf-8").strip()
         except OSError:
             pass
     valor = secrets.token_urlsafe(48)
-    try:
-        SECRET_PATH.parent.mkdir(parents=True, exist_ok=True)
-        SECRET_PATH.write_text(valor, encoding="utf-8")
-    except OSError:
-        log.warning("Não foi possível gravar o storage_secret em %s", SECRET_PATH)
     return valor
 
 
@@ -91,11 +82,11 @@ def _buscar(login: str) -> dict | None:
     try:
         with db.abrir() as con:
             linha = con.execute(
-                "SELECT * FROM app_users WHERE username = ? OR ra = ? LIMIT 1",
+                "SELECT * FROM users WHERE username = ? OR ra = ? LIMIT 1",
                 (login, login),
             ).fetchone()
     except Exception as erro:
-        log.warning("Falha ao consultar app_users: %s", erro)
+        log.warning("Falha ao consultar users: %s", erro)
         return None
     return dict(linha) if linha else None
 

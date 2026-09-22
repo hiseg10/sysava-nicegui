@@ -1,6 +1,7 @@
 # SysAVA
 
-Plataforma educacional web construída com NiceGUI e SQLite.
+Plataforma educacional web construída com NiceGUI e SQLite, com
+Supabase como fonte de verdade e cache local SQLite.
 
 ## Funcionalidades
 
@@ -16,6 +17,7 @@ Plataforma educacional web construída com NiceGUI e SQLite.
 
 - Python 3.11+
 - Supabase (para sync de dados)
+- Render (para deploy)
 
 ## Instalação
 
@@ -48,7 +50,15 @@ python main.py
 | `SUPABASE_KEY` | Chave de serviço do Supabase |
 | `STORAGE_SECRET` | Segredo para sessões (gerado automaticamente no Render) |
 | `PORT` | Porta do servidor (padrão: 8080) |
-| `SYSAVA_DB_PATH` | Caminho do banco SQLite (opcional, padrão: `data/escola_ativa.db`) |
+| `SYSAVA_DB_PATH` | Caminho do banco SQLite (opcional, padrão: `/data/escola_ativa.db`) |
+
+## Arquitetura
+
+- **Supabase**: Fonte de verdade (17 tabelas normalizadas com RLS)
+- **SQLite**: Cache local (apenas leitura para a UI)
+- **NiceGUI**: Interface web
+
+Ver `docs/ARQUITETURA_NOVA.md` para detalhes completos.
 
 ## Deploy no Render
 
@@ -58,9 +68,10 @@ python main.py
 4. Configurar:
    - Build Command: `pip install -r requirements.txt`
    - Start Command: `python main.py`
+   - Volume: `/data` (persistente)
 5. Adicionar variáveis de ambiente no painel do Render
 
-**Importante**: O Render usa disco persistente. Configure o `SYSAVA_DB_PATH` para um diretório persistente como `/data/escola_ativa.db` e crie um Volume no Render apontando para `/data`.
+Ver `docs/schema_supabase.sql` para o schema do novo Supabase.
 
 ## Estrutura
 
@@ -69,14 +80,13 @@ sysava-nicegui/
 ├── core/           # Lógica de negócio
 │   ├── auth.py     # Autenticação
 │   ├── db.py       # Conexão SQLite
-│   ├── scores.py   # Sistema de notas
+│   ├── sync.py     # Sync Supabase → SQLite
 │   └── ...
 ├── ui/             # Interface (NiceGUI)
-│   ├── aulas.py    # Página de aulas
-│   ├── perfil.py   # Perfil do usuário
-│   └── ...
-├── data/           # Dados locais
+├── docs/           # Documentação e schema SQL
+├── data/           # Apenas escola_ativa.db (SQLite)
 ├── main.py         # Ponto de entrada
+├── render.yaml     # Configuração do Render
 └── requirements.txt
 ```
 

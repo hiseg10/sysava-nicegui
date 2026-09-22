@@ -1,7 +1,5 @@
 """
-Perfil do usuário: configurações pessoais, lembretes e notas.
-
-Cria e gerencia as tabelas `user_profiles` e `user_reminders` no SQLite.
+Perfil do usuário: configurações pessoais (local apenas, sem sync).
 """
 
 from __future__ import annotations

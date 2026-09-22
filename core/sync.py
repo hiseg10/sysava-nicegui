@@ -32,7 +32,7 @@ from pathlib import Path
 from core import db
 
 PROJETO_DIR = db.PROJETO_DIR
-STATE_PATH = PROJETO_DIR / "data" / "sync_state.json"
+STATE_PATH = Path(os.environ.get("SYSAVA_STATE_PATH", str(PROJETO_DIR / "data" / "sync_state.json")))
 CONFIG_PATH = PROJETO_DIR / "data" / "sync_config.json"
 BACKUP_DIR = PROJETO_DIR / "backups"
 
@@ -150,7 +150,7 @@ def testar_conexao() -> dict:
         info.update({"ok": False, "erro": "SUPABASE_URL/SUPABASE_KEY não configuradas."})
         return info
     try:
-        resposta = cliente(recriar=True).table("app_users").select("username").limit(1).execute()
+        resposta = cliente(recriar=True).table("users").select("username").limit(1).execute()
         info.update({"ok": True, "erro": None, "amostra": len(resposta.data or [])})
     except Exception as erro:
         info.update({"ok": False, "erro": str(erro)})

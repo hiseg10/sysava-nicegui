@@ -66,7 +66,7 @@ def submissoes_avaliacao(assessment_id) -> list[dict]:
             linhas = con.execute(
                 "SELECT s.*, u.name AS student_name, u.ra AS student_ra "
                 "FROM student_assessments s "
-                "LEFT JOIN app_users u ON u.username = s.user_username "
+                "LEFT JOIN users u ON u.username = s.user_username "
                 "WHERE s.assessment_id = ? "
                 "ORDER BY u.name",
                 (str(assessment_id),),

@@ -26,7 +26,6 @@ TABELAS_PUSH = [
     "student_assessments",
     "student_grades",
     "attendance",
-    "user_profiles",
     "qualitative_points",
 ]
 
@@ -36,12 +35,17 @@ COLUNA_UPDATED = "updated_at"
 _state_lock = threading.Lock()
 
 
+import os
+from pathlib import Path
+
+STATE_PATH = Path(os.environ.get("SYSAVA_STATE_PATH", str(Path(__file__).resolve().parent.parent / "data" / "state.json")))
+
+
 def _carregar_estado() -> dict:
     """Lê o estado do push sync."""
-    caminho = db.PROJETO_DIR / "data" / "push_sync_state.json"
-    if caminho.exists():
+    if STATE_PATH.exists():
         try:
-            return json.loads(caminho.read_text(encoding="utf-8"))
+            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
         except Exception:
             pass
     return {}
@@ -49,9 +53,8 @@ def _carregar_estado() -> dict:
 
 def _salvar_estado(estado: dict) -> None:
     """Salva o estado do push sync."""
-    caminho = db.PROJETO_DIR / "data" / "push_sync_state.json"
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    caminho.write_text(json.dumps(estado, indent=2), encoding="utf-8")
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(estado, indent=2), encoding="utf-8")
 
 
 def _tem_coluna(con, tabela: str, coluna: str) -> bool:

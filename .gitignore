@@ -33,6 +33,9 @@ Thumbs.db
 data/*.json
 data/*.db
 data/*.sql
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
 data/storage_secret.txt
 
 # Windows scripts

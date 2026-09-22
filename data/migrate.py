@@ -22,7 +22,6 @@ import sqlite3
 
 client = create_client(URL, KEY)
 LEGACY_DB = Path(__file__).resolve().parent.parent / "data" / "escola_ativa.db"
-con = sqlite3.connect(str(LEGACY_DB))
 con.row_factory = sqlite3.Row
 cur = con.cursor()
 

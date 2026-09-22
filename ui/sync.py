@@ -98,6 +98,12 @@ def sync_page() -> None:
                     ui.label("Projeto:").classes("text-grey-7")
                     ui.label(info["host"] or "-").classes("font-medium")
                 with ui.row().classes("items-baseline gap-2"):
+                    ui.label("Ambiente:").classes("text-grey-7")
+                    ui.label(info.get("ambiente") or "-").classes("font-medium")
+                with ui.row().classes("items-baseline gap-2"):
+                    ui.label("Origem:").classes("text-grey-7")
+                    ui.label(info.get("origem") or "-").classes("font-medium")
+                with ui.row().classes("items-baseline gap-2"):
                     ui.label("Arquivo .env:").classes("text-grey-7")
                     ui.label(info["env_file"]).classes("font-medium break-all")
                 with ui.row().classes("items-baseline gap-2"):
@@ -105,10 +111,17 @@ def sync_page() -> None:
                     ui.label(info["chave"] or "-").classes("font-medium")
 
             if not info["configurado"]:
-                ui.label(
-                    "Defina SUPABASE_URL e SUPABASE_KEY em um arquivo .env na raiz do "
-                    "projeto (ou aponte SYSAVA_ENV_FILE para o arquivo existente)."
-                ).classes("text-warning")
+                if info.get("ambiente") == "servidor":
+                    ui.label(
+                        "Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY "
+                        "nas variáveis de ambiente do servidor (Render → Environment)."
+                    ).classes("text-warning")
+                else:
+                    ui.label(
+                        "Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em um arquivo "
+                        ".env na raiz do projeto (ou aponte SYSAVA_ENV_FILE para o "
+                        "arquivo existente)."
+                    ).classes("text-warning")
 
     def testar_conexao() -> None:
         resultado = sync.testar_conexao()

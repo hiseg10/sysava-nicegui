@@ -7,9 +7,11 @@ sem apagar dados locais que não existam na nuvem. Colunas novas vindas da
 nuvem são adicionadas às tabelas existentes; tabelas que só existem no
 Supabase são criadas localmente.
 
-As credenciais são lidas de variáveis de ambiente ou de um arquivo `.env`
-(procura em `SYSAVA_ENV_FILE`, depois `<projeto>/.env` e `<projeto>/data/.env`).
-Nenhuma chave é exibida em log ou tela: apenas o host e uma versão mascarada.
+As credenciais são lidas por duas rotas, conforme o ambiente de execução
+(`_ambiente_execucao`): local lê um arquivo `.env` (`SYSAVA_ENV_FILE`,
+`<projeto>/.env` ou `<projeto>/data/.env`); servidor (Render) lê apenas
+variáveis de ambiente. Nenhuma chave é exibida em log ou tela: apenas o host
+e uma versão mascarada.
 
 Uso típico:
     from core import sync
@@ -75,37 +77,69 @@ def caminho_env() -> Path:
     return PROJETO_DIR / ".env"
 
 
+def _ambiente_execucao() -> str:
+    """Detecta onde o app está rodando: 'servidor' (Render/hosting) ou 'local'.
+
+    No Render a variável `RENDER` é definida automaticamente; `SYSAVA_RUNTIME`
+    permite forçar o modo manualmente (ex.: SYSAVA_RUNTIME=local em dev).
+    """
+    forca = (os.environ.get("SYSAVA_RUNTIME") or "").strip().lower()
+    if forca in ("servidor", "server", "render"):
+        return "servidor"
+    if forca in ("local", "dev"):
+        return "local"
+    if os.environ.get("RENDER"):
+        return "servidor"
+    return "local"
+
+
 def carregar_credenciais(recarregar: bool = False) -> dict:
-    """Lê SUPABASE_URL e a chave de serviço (service_role) do ambiente ou .env.
+    """Lê SUPABASE_URL e a chave de serviço (service_role).
+
+    Duas rotas conforme o ambiente de execução:
+    - local:   lê do arquivo `.env` (ou `data/.env`)
+    - servidor: lê apenas variáveis de ambiente (Render/hosting)
 
     O sync é server-side e precisa da chave `service_role` para:
     1. Listar tabelas via OpenAPI (`/rest/v1/` — só aceita service_role).
     2. Ler todas as linhas ignorando o RLS (a chave anon retorna vazio).
     Fallback para SUPABASE_KEY (anon) se a service_role não existir.
     """
-    url = (os.environ.get("SUPABASE_URL") or "").strip()
-    key = (
-        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        or os.environ.get("SUPABASE_KEY")
-        or ""
-    ).strip()
+    ambiente = _ambiente_execucao()
     env_file = caminho_env()
 
-    if not (url and key) and env_file.exists():
-        try:
-            from dotenv import dotenv_values
+    if ambiente == "servidor":
+        url = (os.environ.get("SUPABASE_URL") or "").strip()
+        key = (
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_KEY")
+            or ""
+        ).strip()
+        origem = "variáveis de ambiente (servidor)"
+    else:
+        url, key = "", ""
+        origem = "arquivo .env (local)"
+        if env_file.exists():
+            try:
+                from dotenv import dotenv_values
 
-            valores = dotenv_values(env_file)
-            url = url or (valores.get("SUPABASE_URL") or "").strip()
-            key = key or (
-                valores.get("SUPABASE_SERVICE_ROLE_KEY")
-                or valores.get("SUPABASE_KEY")
-                or ""
-            ).strip()
-        except Exception:
-            pass
+                valores = dotenv_values(env_file)
+                url = (valores.get("SUPABASE_URL") or "").strip()
+                key = (
+                    valores.get("SUPABASE_SERVICE_ROLE_KEY")
+                    or valores.get("SUPABASE_KEY")
+                    or ""
+                ).strip()
+            except Exception:
+                pass
 
-    return {"url": url, "key": key, "env_file": str(env_file)}
+    return {
+        "url": url,
+        "key": key,
+        "env_file": str(env_file),
+        "ambiente": ambiente,
+        "origem": origem,
+    }
 
 
 def _mascarar(valor: str) -> str:
@@ -115,6 +149,14 @@ def _mascarar(valor: str) -> str:
     if len(valor) <= 8:
         return "*" * len(valor)
     return f"{valor[:4]}...{valor[-4:]}"
+
+
+def _erro_credenciais_ausentes(cred: dict) -> str:
+    """Mensagem de erro apontando a fonte correta conforme o ambiente."""
+    base = "Credenciais do Supabase ausentes. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY "
+    if cred.get("ambiente") == "servidor":
+        return base + "nas variáveis de ambiente do servidor (Render → Environment)."
+    return base + f"no arquivo {cred.get('env_file') or caminho_env()}."
 
 
 def descrever_conexao() -> dict:
@@ -129,6 +171,8 @@ def descrever_conexao() -> dict:
         "env_existe": Path(cred["env_file"]).exists(),
         "host": host,
         "chave": _mascarar(cred["key"]),
+        "ambiente": cred["ambiente"],
+        "origem": cred["origem"],
     }
 
 
@@ -143,11 +187,7 @@ def cliente(recriar: bool = False):
         if _cliente is None or recriar:
             cred = carregar_credenciais()
             if not (cred["url"] and cred["key"]):
-                raise SyncError(
-                    "Credenciais do Supabase ausentes. Defina SUPABASE_URL e "
-                    "SUPABASE_SERVICE_ROLE_KEY "
-                    f"(por exemplo em {caminho_env()})."
-                )
+                raise SyncError(_erro_credenciais_ausentes(cred))
             try:
                 from supabase import create_client
             except ImportError as erro:
@@ -786,11 +826,7 @@ def sincronizar(
 
     cred = carregar_credenciais()
     if not (cred["url"] and cred["key"]):
-        raise SyncError(
-            "Credenciais do Supabase ausentes. Defina SUPABASE_URL e "
-            "SUPABASE_SERVICE_ROLE_KEY "
-            f"(por exemplo em {caminho_env()})."
-        )
+        raise SyncError(_erro_credenciais_ausentes(cred))
 
     inicio = time.time()
     carimbo_inicio = datetime.now().isoformat(timespec="seconds")

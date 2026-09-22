@@ -13,11 +13,11 @@ env/
 .env.local
 .env.*.local
 
-# SQLite databases
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
+# SQLite databases (apenas cache local)
+data/escola_ativa.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
 
 # IDE
 .vscode/

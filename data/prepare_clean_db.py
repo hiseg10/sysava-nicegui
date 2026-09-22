@@ -200,6 +200,7 @@ DEFAULTS = {
     "updated_at": "'2026-01-01'", "duration_type": "'anual'",
     "type": "'regular'", "lessons_per_week": "0", "max_hours": "0",
     "school_id": "1", "ano_letivo": "'2026'",
+    "question_type": "'objective'",
 }
 
 def insert(table, columns, rows):
@@ -242,7 +243,10 @@ def migrate_table(supabase_table, legacy_table, columns, fk_checks=None, col_map
         for row in all_rows:
             ok = True
             for fk_col, ref_table in fk_checks:
-                val = str(row.get(fk_col, ""))
+                v = row.get(fk_col)
+                if v is None:
+                    continue  # FK NULL é permitido (coluna nullable)
+                val = str(v)
                 if val and val not in get_ids(ref_table):
                     ok = False
                     break

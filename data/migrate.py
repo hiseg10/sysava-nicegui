@@ -59,7 +59,10 @@ def migrate(table, columns, batch_size=50, fk_checks=None, on_conflict=None):
             for fk_check in fk_checks:
                 fk_col, ref_table = fk_check[0], fk_check[1]
                 ref_col = fk_check[2] if len(fk_check) > 2 else "id"
-                val = str(row.get(fk_col, ""))
+                v = row.get(fk_col)
+                if v is None:
+                    continue  # FK NULL é permitido (coluna nullable)
+                val = str(v)
                 if val:
                     if ref_col == "id":
                         if val not in load_ids(ref_table):
@@ -103,6 +106,14 @@ def migrate(table, columns, batch_size=50, fk_checks=None, on_conflict=None):
                     pass
     print(f"  [OK] {table}: {ok}/{total}")
 
+def clear_remote(table):
+    """Apaga todas as linhas da tabela no Supabase (para re-migração limpa)."""
+    try:
+        client.table(table).delete().gte("id", 0).execute()
+        print(f"  [CLEAR] {table} limpa.")
+    except Exception as e:
+        print(f"  [CLEAR ERRO] {table}: {e}")
+
 print("Iniciando migracao (batch 50, com FKs)...\n")
 
 print("[users]")
@@ -144,19 +155,24 @@ migrate("assessment_questions", ["id", "assessment_id", "question_text", "questi
         fk_checks=[("assessment_id", "assessments")])
 
 print("[student_assessments]")
+clear_remote("student_assessment_answers")
+clear_remote("student_assessments")
 migrate("student_assessments", ["id", "assessment_id", "user_username", "score", "status", "submitted_at"],
-        fk_checks=[("assessment_id", "assessments")])
+        fk_checks=[("assessment_id", "assessments")],
+        on_conflict="assessment_id,user_username")
 
 print("[student_assessment_answers]")
 migrate("student_assessment_answers", ["id", "submission_id", "question_id", "answer_text", "answer_link", "selected_option_index"],
         fk_checks=[("submission_id", "student_assessments"), ("question_id", "assessment_questions")])
 
 print("[attendance]")
-migrate("attendance", ["class_name", "subject_id", "student_name", "student_number", "is_present", "status", "class_id", "date", "professor_name"],
+clear_remote("attendance")
+migrate("attendance", ["id", "class_name", "subject_id", "student_name", "student_number", "is_present", "status", "class_id", "date", "professor_name"],
         fk_checks=[("subject_id", "subjects"), ("class_id", "classes")])
 
 print("[forum_posts]")
-migrate("forum_posts", ["lesson_id", "user_name", "message"],
+clear_remote("forum_posts")
+migrate("forum_posts", ["id", "lesson_id", "user_name", "message"],
         fk_checks=[("lesson_id", "lessons")])
 
 print("[weekly_schedule]")

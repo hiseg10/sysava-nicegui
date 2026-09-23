@@ -104,14 +104,17 @@ def _preparar_registro(registro: dict) -> dict:
     return {k: _preparar_valor(v) for k, v in registro.items()}
 
 
-def push_tabela(tabela: str, cliente_supabase, progresso=None) -> dict:
+def push_tabela(tabela: str, cliente_supabase, progresso=None, sufixo_estado: str = "") -> dict:
     """
-    Envia todas as linhas de uma tabela local para o Supabase (upsert).
+    Envia todas as linhas pendentes de uma tabela local para um alvo (upsert).
 
+    ``sufixo_estado`` permite um cursor por alvo (ex.: "_alvo1"), para que o
+    secundário receba as linhas mesmo depois de o principal já tê-las enviado.
     Retorna {"enviados": N, "erros": M}.
     """
     estado = _carregar_estado()
-    ultima_chave = estado.get(f"push_{tabela}_last_id", 0)
+    chave = f"push_{tabela}_last_id{sufixo_estado}"
+    ultima_chave = estado.get(chave, 0)
 
     resultado = {"enviados": 0, "erros": 0}
 
@@ -131,8 +134,30 @@ def push_tabela(tabela: str, cliente_supabase, progresso=None) -> dict:
 
             registros = []
             max_id = ultima_chave
+            # Colunas do alvo (None = desconhecido; set() vazio = tabela ausente)
+            colunas_alvo = None
+            try:
+                from core import sync as _sync
+                alvos = _sync.carregar_alvos()
+                if sufixo_estado.startswith("_alvo"):
+                    idx = int(sufixo_estado.replace("_alvo", "") or 0)
+                else:
+                    idx = 0
+                alvo_meta = alvos[idx] if 0 <= idx < len(alvos) else None
+                if alvo_meta:
+                    colunas_alvo = _sync.colunas_tabela_alvo(alvo_meta, tabela)
+            except Exception:
+                colunas_alvo = None
+            if colunas_alvo is not None and not colunas_alvo:
+                log.info("Tabela %s ausente no alvo — push pulado.", tabela)
+                return resultado
+
             for linha in linhas:
                 reg = _preparar_registro(dict(linha))
+                if colunas_alvo:
+                    reg = {k: v for k, v in reg.items() if k in colunas_alvo}
+                if not reg:
+                    continue
                 registros.append(reg)
                 if "id" in reg:
                     try:
@@ -153,10 +178,10 @@ def push_tabela(tabela: str, cliente_supabase, progresso=None) -> dict:
                     log.warning("Erro ao enviar lote de %s: %s", tabela, erro)
                     resultado["erros"] += len(lote)
 
-            # Atualiza estado
+            # Atualiza estado (cursor deste alvo)
             with _state_lock:
-                estado[f"push_{tabela}_last_id"] = max_id
-                estado[f"push_{tabela}_ultimo"] = datetime.now().isoformat()
+                estado[chave] = max_id
+                estado[f"push_{tabela}_ultimo{sufixo_estado}"] = datetime.now().isoformat()
                 _salvar_estado(estado)
 
     except sqlite3.OperationalError:
@@ -167,17 +192,32 @@ def push_tabela(tabela: str, cliente_supabase, progresso=None) -> dict:
 
 def push_tudo(progresso=None) -> dict:
     """
-    Envia todas as tabelas locais para o Supabase.
+    Envia todas as tabelas locais para TODOS os alvos Supabase configurados.
 
+    Cada alvo tem cursor incremental próprio: se o principal falhar, o
+    secundário continua de onde parou (e vice-versa), mantendo a redundância.
     Retorna {"tabelas": {nome: resultado}, "total_enviados": N, "total_erros": M}.
     """
     from core import sync
 
-    try:
-        cli = sync.cliente()
-    except Exception as erro:
-        log.warning("Não foi possível conectar ao Supabase: %s", erro)
-        return {"tabelas": {}, "total_enviados": 0, "total_erros": 0}
+    alvos = sync.carregar_alvos()
+    clientes: list = []
+    for i, alvo in enumerate(alvos):
+        if not (alvo["url"] and alvo["key"]):
+            continue
+        try:
+            from supabase import create_client
+
+            clientes.append((i, alvo.get("nome") or f"alvo{i}", create_client(alvo["url"], alvo["key"])))
+        except Exception as erro:
+            log.warning("Alvo %s indisponível: %s", alvo.get("nome"), erro)
+
+    if not clientes:
+        try:
+            clientes.append((0, "principal", sync.cliente()))
+        except Exception as erro:
+            log.warning("Não foi possível conectar ao Supabase: %s", erro)
+            return {"tabelas": {}, "total_enviados": 0, "total_erros": 0}
 
     resultados = {}
     total_enviados = 0
@@ -186,10 +226,23 @@ def push_tudo(progresso=None) -> dict:
     for tabela in TABELAS_PUSH:
         if progresso:
             progresso(f"Sincronizando {tabela}...", None)
-        res = push_tabela(tabela, cli, progresso=progresso)
-        resultados[tabela] = res
-        total_enviados += res["enviados"]
-        total_erros += res["erros"]
+        melhor = {"enviados": 0, "erros": 0}
+        for indice, nome, cli in clientes:
+            sufixo = "" if indice == 0 else f"_alvo{indice}"
+            res = push_tabela(
+                tabela,
+                cli,
+                progresso=progresso if indice == 0 else None,
+                sufixo_estado=sufixo,
+            )
+            if res.get("erros", 0) > 0:
+                log.warning("Alvo %s: %s erro(s) ao enviar %s", nome, res["erros"], tabela)
+            # soma entre alvos (redundância: cada um reporta o próprio envio)
+            melhor["enviados"] += res.get("enviados", 0)
+            melhor["erros"] += res.get("erros", 0)
+        resultados[tabela] = melhor
+        total_enviados += melhor["enviados"]
+        total_erros += melhor["erros"]
 
     return {
         "tabelas": resultados,

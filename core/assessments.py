@@ -128,11 +128,10 @@ def _push_nota(submission_id, score) -> None:
     def _enviar():
         try:
             from core import sync
-            cli = sync.cliente()
-            cli.table("student_assessments").upsert({
+            sync.upsert_filtrado("student_assessments", [{
                 "id": str(submission_id),
                 "score": score,
-            }).execute()
+            }])
         except Exception:
             pass
 

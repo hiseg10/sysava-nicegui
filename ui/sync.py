@@ -112,6 +112,26 @@ def sync_page() -> None:
                 with ui.row().classes("items-baseline gap-2"):
                     ui.label("Papel:").classes("text-grey-7")
                     ui.label(info.get("papel") or "-").classes("font-medium")
+                with ui.row().classes("items-baseline gap-2"):
+                    ui.label("Alvos:").classes("text-grey-7")
+                    ui.label(f"{info.get('qtd_alvos', 1)} configurado(s)").classes("font-medium")
+
+            alvos = info.get("alvos") or []
+            if alvos:
+                with ui.column().classes("w-full gap-1 mt-2"):
+                    ui.label("Alvos de sincronização").classes("text-subtitle2")
+                    for a in alvos:
+                        with ui.row().classes("items-baseline gap-2"):
+                            ui.icon(
+                                "cloud_done" if a["configurado"] else "cloud_off",
+                                color="positive" if a["configurado"] else "grey-5",
+                            )
+                            ui.label(a.get("nome") or "-").classes("font-medium")
+                            ui.label(a.get("host") or "-").classes("text-grey-7")
+                            if a.get("papel"):
+                                ui.label(a["papel"]).classes("text-caption text-grey-6")
+                            if a.get("ativo"):
+                                ui.label("(ativo para download)").classes("text-positive text-caption")
 
             if not info["configurado"]:
                 if info.get("ambiente") == "servidor":
@@ -125,13 +145,34 @@ def sync_page() -> None:
                         ".env na raiz do projeto (ou aponte SYSAVA_ENV_FILE para o "
                         "arquivo existente)."
                     ).classes("text-warning")
+            elif info.get("qtd_alvos", 0) < 2:
+                dica = (
+                    "nas variáveis de ambiente (Render → Environment)"
+                    if info.get("ambiente") == "servidor"
+                    else "no arquivo .env"
+                )
+                ui.label(
+                    "Redundância: para usar mais de um Supabase, configure "
+                    f"SUPABASE2_URL e SUPABASE2_SERVICE_ROLE_KEY {dica}."
+                ).classes("text-grey-6")
 
     def testar_conexao() -> None:
         resultado = sync.testar_conexao()
-        if resultado.get("ok"):
-            ui.notify("Conexão com o Supabase OK.", type="positive")
+        alvos = resultado.get("alvos") or []
+        if alvos and len(alvos) > 1:
+            partes = [
+                f"{a.get('nome')}: {'OK' if a.get('ok') else (a.get('erro') or 'falhou')}"
+                for a in alvos
+            ]
+            msg = " · ".join(partes)
         else:
-            ui.notify(f"Falha na conexão: {resultado.get('erro')}", type="negative")
+            msg = resultado.get("erro") or "Conexão com o Supabase OK."
+        if resultado.get("ok"):
+            falhou = any(not a.get("ok") for a in alvos)
+            ui.notify(msg, type="warning" if falhou else "positive")
+        else:
+            ui.notify(f"Falha na conexão: {msg}", type="negative")
+        card_conexao.refresh()
 
     card_conexao()
     with ui.row().classes("items-center q-gutter-sm"):

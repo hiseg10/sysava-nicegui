@@ -7,7 +7,7 @@
 -- FASE 1: Criar novas tabelas
 -- ---------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS app_users (
     username    TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     ra          TEXT DEFAULT '',
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS class_subjects (
 CREATE TABLE IF NOT EXISTS student_enrollments (
     id              SERIAL PRIMARY KEY,
     class_id        INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     enrolled_at     TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(class_id, user_username)
 );
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS assessment_questions (
 CREATE TABLE IF NOT EXISTS student_assessments (
     id              SERIAL PRIMARY KEY,
     assessment_id   INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     score           REAL,
     status          TEXT NOT NULL DEFAULT 'pendente',
     submitted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS weekly_schedule (
 
 CREATE TABLE IF NOT EXISTS qualitative_points (
     id          SERIAL PRIMARY KEY,
-    user_username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     points      REAL NOT NULL DEFAULT 0,
     notes       TEXT DEFAULT '',
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS qualitative_points (
 
 CREATE TABLE IF NOT EXISTS student_grades (
     id              SERIAL PRIMARY KEY,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     class_name      TEXT NOT NULL,
     subject         TEXT NOT NULL,
     trimester       INTEGER NOT NULL DEFAULT 1,
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS student_grades (
 -- ============================================================
 
 -- Migrar users
-INSERT INTO users (username, name, ra, role, is_active, password_hash)
+INSERT INTO app_users (username, name, ra, role, is_active, password_hash)
 SELECT username, name, ra, role, is_active, password
 FROM app_users
 ON CONFLICT(username) DO NOTHING;
@@ -302,7 +302,7 @@ ON CONFLICT(id) DO NOTHING;
 -- FASE 3: Ativar RLS
 -- ============================================================
 
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_subjects ENABLE ROW LEVEL SECURITY;

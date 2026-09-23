@@ -338,7 +338,7 @@ def listar_alunos_sem_turma() -> list[dict]:
     try:
         with db.abrir() as con:
             linhas = con.execute(
-"""SELECT u.* FROM users u
+"""SELECT u.* FROM app_users u
                     LEFT JOIN student_enrollments e ON e.user_username = u.username
                    WHERE e.user_username IS NULL
                    AND u.role = 'student'

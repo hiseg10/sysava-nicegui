@@ -13,6 +13,12 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE2_URL
+        sync: false
+      - key: SUPABASE2_KEY
+        sync: false
+      - key: SUPABASE2_SERVICE_ROLE_KEY
+        sync: false
       - key: STORAGE_SECRET
         generateValue: true
       - key: SYSAVA_DB_PATH

@@ -33,6 +33,14 @@ def _tem_coluna(con, tabela: str, coluna: str) -> bool:
     return any(linha[1] == coluna for linha in con.execute(f'PRAGMA table_info("{tabela}")'))
 
 
+def _id_integer(con, tabela: str) -> bool:
+    """True se a coluna `id` é INTEGER (autoincrement); False se TEXT/uuid."""
+    for linha in con.execute(f'PRAGMA table_info("{tabela}")'):
+        if linha[1] == "id":
+            return "INT" in (linha[2] or "").upper()
+    return True
+
+
 def _chave_subject(subject_id) -> str | None:
     return None if subject_id is None else str(subject_id)
 
@@ -99,7 +107,7 @@ def carregar_chamada(class_name: str, subject_id, data: str) -> dict[str, str]:
             linhas = con.execute(
                 f"SELECT {colunas} FROM {TABELA} "
                 "WHERE class_name = ? AND date = ? "
-                "AND COALESCE(subject_id, '') = COALESCE(?, '')",
+                "AND CAST(COALESCE(subject_id, '') AS TEXT) = CAST(COALESCE(?, '') AS TEXT)",
                 (class_name, data, _chave_subject(subject_id)),
             ).fetchall()
     except Exception:
@@ -134,6 +142,7 @@ def salvar_chamada(
     with db.abrir(somente_leitura=False) as con:
         if not _tem_coluna(con, TABELA, "status"):
             con.execute(f'ALTER TABLE "{TABELA}" ADD COLUMN status TEXT')
+        id_integer = _id_integer(con, TABELA)
 
         for registro in registros:
             nome = registro.get("student_name")
@@ -145,7 +154,7 @@ def salvar_chamada(
 
             existente = con.execute(
                 f"SELECT id FROM {TABELA} WHERE student_name = ? AND class_name = ? "
-                "AND date = ? AND COALESCE(subject_id, '') = COALESCE(?, '') LIMIT 1",
+                "AND date = ? AND CAST(COALESCE(subject_id, '') AS TEXT) = CAST(COALESCE(?, '') AS TEXT) LIMIT 1",
                 (nome, class_name, data, chave_subject),
             ).fetchone()
 
@@ -157,24 +166,33 @@ def salvar_chamada(
                 )
                 atualizados += 1
             else:
-                con.execute(
-                    f"INSERT INTO {TABELA} "
-                    "(id, student_name, student_number, is_present, class_name, date, "
-                    " professor_name, created_at, subject_id, status) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        uuid.uuid4().hex,
-                        nome,
-                        str(numero),
-                        str(presente),
-                        class_name,
-                        data,
-                        professor,
-                        agora,
-                        chave_subject,
-                        status,
-                    ),
+                valores = (
+                    nome,
+                    str(numero),
+                    str(presente),
+                    class_name,
+                    data,
+                    professor,
+                    agora,
+                    chave_subject,
+                    status,
                 )
+                if id_integer:
+                    con.execute(
+                        f"INSERT INTO {TABELA} "
+                        "(student_name, student_number, is_present, class_name, date, "
+                        " professor_name, created_at, subject_id, status) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        valores,
+                    )
+                else:
+                    con.execute(
+                        f"INSERT INTO {TABELA} "
+                        "(id, student_name, student_number, is_present, class_name, date, "
+                        " professor_name, created_at, subject_id, status) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (uuid.uuid4().hex, *valores),
+                    )
                 inseridos += 1
 
         con.commit()
@@ -191,7 +209,6 @@ def _push_attendance(registros, class_name, data, subject_id, professor, timesta
     def _enviar():
         try:
             from core import sync
-            cli = sync.cliente()
             linhas = []
             for reg in registros:
                 nome = reg.get("student_name")
@@ -212,7 +229,7 @@ def _push_attendance(registros, class_name, data, subject_id, professor, timesta
                     "status": status,
                 })
             if linhas:
-                cli.table("attendance").upsert(linhas).execute()
+                sync.upsert_filtrado("attendance", linhas)
         except Exception:
             pass
 
@@ -232,7 +249,7 @@ def resumo_disciplina(class_name: str, subject_id) -> list[dict]:
             colunas = "id, student_name, is_present" + (", status" if tem_status else "")
             linhas = con.execute(
                 f"SELECT {colunas} FROM {TABELA} "
-                "WHERE class_name = ? AND COALESCE(subject_id, '') = COALESCE(?, '')",
+                "WHERE class_name = ? AND CAST(COALESCE(subject_id, '') AS TEXT) = CAST(COALESCE(?, '') AS TEXT)",
                 (class_name, _chave_subject(subject_id)),
             ).fetchall()
     except Exception:

@@ -24,18 +24,20 @@ print(f"Destino: {CLEAN}")
 print()
 
 CLEAN_SCHEMA = """
-CREATE TABLE users (
+CREATE TABLE app_users (
     username TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     ra TEXT DEFAULT '',
     role TEXT NOT NULL DEFAULT 'student',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     password_hash TEXT DEFAULT '',
+    password TEXT DEFAULT '',
+    status TEXT DEFAULT 'active',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-CREATE INDEX IF NOT EXISTS idx_users_ra ON users(ra);
+CREATE INDEX IF NOT EXISTS idx_users_role ON app_users(role);
+CREATE INDEX IF NOT EXISTS idx_users_ra ON app_users(ra);
 
 CREATE TABLE classes (
     id INTEGER PRIMARY KEY,
@@ -260,8 +262,8 @@ def migrate_table(supabase_table, legacy_table, columns, fk_checks=None, col_map
 
 print("\n=== MIGRACAO ===\n")
 
-print("[users]")
-migrate_table("users", "app_users", ["username","name","ra","role","is_active","password_hash"],
+print("[app_users]")
+migrate_table("app_users", "app_users", ["username","name","ra","role","is_active","password_hash","password","status"],
               col_map={"password_hash": "password"})
 
 print("[classes]")
@@ -322,7 +324,7 @@ print("[user_history]")
 migrate_table("user_history", "user_history", ["id","username","activity","timestamp"])
 
 print("\n=== VERIFICACAO ===")
-for table in ["users","classes","subjects","lessons","quizzes","assessments","forum_posts","user_history"]:
+for table in ["app_users","classes","subjects","lessons","quizzes","assessments","forum_posts","user_history"]:
     count = cur_clean.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
     print(f"  {table}: {count}")
 

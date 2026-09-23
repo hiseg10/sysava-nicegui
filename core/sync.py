@@ -102,26 +102,14 @@ def eh_local() -> bool:
     return _ambiente_execucao() == "local"
 
 
-def carregar_credenciais(recarregar: bool = False) -> dict:
-    """Lê SUPABASE_URL e a chave de serviço (service_role).
-
-    Duas rotas conforme o ambiente de execução:
-    - local:   lê do arquivo `.env` (ou `data/.env`)
-    - servidor: lê apenas variáveis de ambiente (Render/hosting)
-
-    O sync é server-side e precisa da chave `service_role` para:
-    1. Listar tabelas via OpenAPI (`/rest/v1/` — só aceita service_role).
-    2. Ler todas as linhas ignorando o RLS (a chave anon retorna vazio).
-    Fallback para SUPABASE_KEY (anon) se a service_role não existir.
-    """
-    ambiente = _ambiente_execucao()
-    env_file = caminho_env()
-
+def _ler_credenciais_prefixo(prefixo: str, ambiente: str, env_file: Path) -> dict:
+    """Lê url/key com o prefixo informado ('' = primário, '2' = secundário)."""
+    sufixo = prefixo or ""
     if ambiente == "servidor":
-        url = (os.environ.get("SUPABASE_URL") or "").strip()
+        url = (os.environ.get(f"SUPABASE{sufixo}_URL") or "").strip()
         key = (
-            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-            or os.environ.get("SUPABASE_KEY")
+            os.environ.get(f"SUPABASE{sufixo}_SERVICE_ROLE_KEY")
+            or os.environ.get(f"SUPABASE{sufixo}_KEY")
             or ""
         ).strip()
         origem = "variáveis de ambiente (servidor)"
@@ -133,10 +121,10 @@ def carregar_credenciais(recarregar: bool = False) -> dict:
                 from dotenv import dotenv_values
 
                 valores = dotenv_values(env_file)
-                url = (valores.get("SUPABASE_URL") or "").strip()
+                url = (valores.get(f"SUPABASE{sufixo}_URL") or "").strip()
                 key = (
-                    valores.get("SUPABASE_SERVICE_ROLE_KEY")
-                    or valores.get("SUPABASE_KEY")
+                    valores.get(f"SUPABASE{sufixo}_SERVICE_ROLE_KEY")
+                    or valores.get(f"SUPABASE{sufixo}_KEY")
                     or ""
                 ).strip()
             except Exception:
@@ -148,7 +136,96 @@ def carregar_credenciais(recarregar: bool = False) -> dict:
         "env_file": str(env_file),
         "ambiente": ambiente,
         "origem": origem,
+        "prefixo": prefixo,
+        "nome": "principal" if not prefixo else f"secundário{prefixo}",
     }
+
+
+def carregar_alvos() -> list[dict]:
+    """Retorna todos os alvos Supabase configurados (primário + opcionais)."""
+    ambiente = _ambiente_execucao()
+    env_file = caminho_env()
+    alvos = []
+    for prefixo in ("", "2"):
+        cred = _ler_credenciais_prefixo(prefixo, ambiente, env_file)
+        if cred["url"] and cred["key"]:
+            alvos.append(cred)
+    return alvos
+
+
+_alvo_ativo = 0  # índice do alvo usado para download (0 = principal)
+_ALVO_ATIVO_PADRAO = 0
+
+
+def _alvo_persistido() -> int:
+    """Lê o índice do alvo oficial salvo em data/sync_config.json (leitura direta).
+
+    Usa JSON puro (sem carregar_config) porque roda na importação do módulo,
+    antes de carregar_config estar definida.
+    """
+    try:
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, encoding="utf-8") as arquivo:
+                dados = json.load(arquivo)
+            return int(dados.get("alvo_ativo", _ALVO_ATIVO_PADRAO))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return _ALVO_ATIVO_PADRAO
+
+
+_alvo_ativo = _alvo_persistido()
+
+
+def carregar_credenciais(recarregar: bool = False) -> dict:
+    """Lê SUPABASE_URL e a chave de serviço (service_role) do alvo ativo.
+
+    Duas rotas conforme a ambiente de execução:
+    - local:   lê do arquivo `.env` (ou `data/.env`)
+    - servidor: lê apenas variáveis de ambiente (Render/hosting)
+
+    Suporta alvo secundário via SUPABASE2_* (fallback se o principal falhar).
+    """
+    alvos = carregar_alvos()
+    if not alvos:
+        ambiente = _ambiente_execucao()
+        env_file = caminho_env()
+        return _ler_credenciais_prefixo("", ambiente, env_file)
+    global _alvo_ativo
+    if _alvo_ativo >= len(alvos):
+        _alvo_ativo = 0
+    return alvos[_alvo_ativo]
+
+
+def trocar_alvo(i: int) -> bool:
+    """Define o alvo ativo (0=principal, 1=secundário) e invalida caches.
+
+    Retorna True se a troca foi aceita. O índice também é persistido em
+    data/sync_config.json para valer após reiniciar o app.
+    """
+    global _alvo_ativo
+    alvos = carregar_alvos()
+    if not (0 <= i < len(alvos)):
+        return False
+    if i != _alvo_ativo:
+        _alvo_ativo = i
+        invalidar_cache()
+        log.info("Alvo Supabase alterado para: %s", alvos[i].get("nome"))
+    try:
+        salvar_config({"alvo_ativo": i})
+    except OSError:
+        pass
+    return True
+
+
+def alvo_oficial() -> dict:
+    """Resumo do alvo Supabase atualmente oficial (índice, nome, host)."""
+    alvos = carregar_alvos()
+    if not alvos:
+        return {"indice": None, "nome": "-", "host": ""}
+    idx = _alvo_ativo if 0 <= _alvo_ativo < len(alvos) else 0
+    alvo = alvos[idx]
+    host = alvo["url"].split("//")[-1].split("/")[0] if alvo["url"] else ""
+    return {"indice": idx, "nome": alvo.get("nome") or "-", "host": host}
 
 
 def _mascarar(valor: str) -> str:
@@ -184,6 +261,7 @@ def _erro_credenciais_ausentes(cred: dict) -> str:
 def descrever_conexao() -> dict:
     """Resumo da configuração atual (sem expor a chave)."""
     cred = carregar_credenciais()
+    alvos = carregar_alvos()
     host = ""
     if cred["url"]:
         host = cred["url"].split("//")[-1].split("/")[0]
@@ -199,6 +277,18 @@ def descrever_conexao() -> dict:
         "tem_service_role_env": bool(
             (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
         ),
+        "alvos": [
+            {
+                "nome": a.get("nome"),
+                "host": (a["url"].split("//")[-1].split("/")[0] if a["url"] else ""),
+                "configurado": bool(a["url"] and a["key"]),
+                "papel": _papel_chave(a["key"]),
+                "ativo": i == _alvo_ativo,
+            }
+            for i, a in enumerate(alvos)
+        ],
+        "qtd_alvos": len(alvos),
+        "alvo_ativo": _alvo_ativo,
     }
 
 
@@ -224,18 +314,172 @@ def cliente(recriar: bool = False):
         return _cliente
 
 
-def testar_conexao() -> dict:
-    """Testa a conexão com o Supabase e devolve um status legível."""
-    info = descrever_conexao()
-    if not info["configurado"]:
-        info.update({"ok": False, "erro": "SUPABASE_URL/SUPABASE_KEY não configuradas."})
-        return info
+def clientes_todos() -> list:
+    """Clientes para todos os alvos configurados (push redundante)."""
+    clientes = []
+    alvos = carregar_alvos()
     try:
-        resposta = cliente(recriar=True).table("users").select("username").limit(1).execute()
-        info.update({"ok": True, "erro": None, "amostra": len(resposta.data or [])})
-    except Exception as erro:
-        info.update({"ok": False, "erro": str(erro)})
-    return info
+        from supabase import create_client
+    except ImportError as erro:
+        raise SyncError("Pacote 'supabase' não instalado.") from erro
+    for alvo in alvos:
+        if alvo["url"] and alvo["key"]:
+            try:
+                clientes.append(create_client(alvo["url"], alvo["key"]))
+            except Exception:
+                continue
+    if not clientes:
+        clientes.append(cliente())  # força erro se nenhum
+    return clientes
+
+
+def enviar_para_alvos(fn: Callable) -> int:
+    """Executa ``fn(cliente)`` em cada alvo Supabase configurado.
+
+    Usado pelos pushes avulsos (attendance, notas, histórico etc.) para
+    manter redundância: se um banco falhar, os outros ainda recebem.
+    Retorna quantos alvos aceitaram a operação.
+    """
+    ok = 0
+    for cli in clientes_todos():
+        try:
+            fn(cli)
+            ok += 1
+        except Exception:
+            continue
+    return ok
+
+
+def upsert_filtrado(tabela: str, registros: Sequence[dict]) -> int:
+    """Upsert em todos os alvos, omitindo colunas que o alvo não tem.
+
+    Se a tabela não existir no alvo, aquele alvo é pulado (sem derrubar os
+    demais). Retorna quantos alvos aceitaram.
+    """
+    if not registros:
+        return 0
+    alvos = carregar_alvos()
+    ok = 0
+    try:
+        from supabase import create_client
+    except ImportError as erro:
+        raise SyncError("Pacote 'supabase' não instalado.") from erro
+
+    for alvo in alvos:
+        if not (alvo.get("url") and alvo.get("key")):
+            continue
+        try:
+            cli = create_client(alvo["url"], alvo["key"])
+            colunas = colunas_tabela_alvo(alvo, tabela)
+            if colunas is not None and not colunas:
+                log.info("Tabela %s ausente no alvo %s — pulado.", tabela, alvo.get("nome"))
+                continue
+            linhas = list(registros)
+            if colunas:
+                linhas = [
+                    {k: v for k, v in reg.items() if k in colunas}
+                    for reg in linhas
+                ]
+                linhas = [reg for reg in linhas if reg]
+            if not linhas:
+                continue
+            cli.table(tabela).upsert(linhas).execute()
+            ok += 1
+        except Exception:
+            continue
+    if not ok:
+        # fallback: tenta pelo menos o cliente primário (erro visível no log)
+        try:
+            cliente().table(tabela).upsert(list(registros)).execute()
+            ok = 1
+        except Exception:
+            pass
+    return ok
+
+
+def colunas_tabela_alvo(alvo: dict, tabela: str) -> set[str] | None:
+    """Colunas da tabela em um alvo via OpenAPI.
+
+    Retorna None se não der para consultar; set() vazio se a tabela não
+    existir no alvo (push deve pular).
+    """
+    if not (alvo.get("url") and alvo.get("key")):
+        return None
+    try:
+        import httpx
+
+        resposta = httpx.get(
+            alvo["url"].rstrip("/") + "/rest/v1/",
+            headers={"apikey": alvo["key"], "Authorization": f"Bearer {alvo['key']}"},
+            timeout=30,
+        )
+        if resposta.status_code >= 400:
+            return None
+        definicoes = (resposta.json() or {}).get("definitions", {})
+        if tabela not in definicoes:
+            return set()
+        return set((definicoes[tabela].get("properties") or {}).keys())
+    except Exception:
+        return None
+
+
+def _proximo_alvo_disponivel() -> bool:
+    """Se houver alvo secundário e o principal falhar, troca. Retorna True se trocou."""
+    alvos = carregar_alvos()
+    if len(alvos) > 1 and _alvo_ativo + 1 < len(alvos):
+        trocar_alvo(_alvo_ativo + 1)
+        return True
+    if _alvo_ativo != 0 and alvos:
+        trocar_alvo(0)  # volta ao principal se estiver em secundário
+        return True
+    return False
+
+
+def testar_conexao() -> dict:
+    """Testa a conexão com todos os alvos configurados."""
+    alvos = carregar_alvos()
+    resultados = []
+    for i, alvo in enumerate(alvos):
+        info = {
+            "nome": alvo.get("nome"),
+            "host": (alvo["url"].split("//")[-1].split("/")[0] if alvo["url"] else ""),
+            "configurado": bool(alvo["url"] and alvo["key"]),
+            "ativo": i == _alvo_ativo,
+        }
+        if not info["configurado"]:
+            info.update({"ok": False, "erro": "Credenciais ausentes."})
+            resultados.append(info)
+            continue
+        try:
+            from supabase import create_client
+
+            cli = create_client(alvo["url"], alvo["key"])
+            # Herdeiro usa app_users; principal antigo ainda pode ter users.
+            erro_ult = None
+            ok_tab = False
+            for nome_tabela in ("app_users", "users"):
+                try:
+                    resposta = cli.table(nome_tabela).select("username").limit(1).execute()
+                    info.update({"ok": True, "erro": None, "amostra": len(resposta.data or [])})
+                    ok_tab = True
+                    break
+                except Exception as exc:
+                    erro_ult = exc
+            if not ok_tab:
+                info.update({"ok": False, "erro": str(erro_ult) if erro_ult else "Tabela de usuários ausente."})
+        except Exception as erro:
+            info.update({"ok": False, "erro": str(erro)})
+        resultados.append(info)
+
+    principal = resultados[0] if resultados else {"ok": False, "erro": "Sem alvos."}
+    return {
+        "ok": any(r.get("ok") for r in resultados),
+        "alvos": resultados,
+        "principal_ok": principal.get("ok", False),
+        "erro": next((r["erro"] for r in resultados if r.get("erro")), None),
+        "configurado": any(r.get("configurado") for r in resultados),
+        "host": principal.get("host", ""),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -924,7 +1168,25 @@ def sincronizar(
         for nome, dados in (estado_anterior.get("tabelas") or {}).items()
     }
 
-    lista = list(tabelas) if tabelas else listar_tabelas_remotas()
+    alvos = carregar_alvos()
+    erros_alvos: list[str] = []
+    lista: list[str] | None = None
+    for tentativa, _alvo in enumerate(alvos):
+        try:
+            lista = list(tabelas) if tabelas else listar_tabelas_remotas()
+            if tentativa > 0:
+                log(f"Alvo {carregar_credenciais().get('nome')} em uso após falha do anterior.", None)
+            break
+        except Exception as erro:
+            erros_alvos.append(str(erro))
+            if tentativa + 1 < len(alvos):
+                log(f"Falha no alvo atual ({erros_alvos[-1]}); tentando o próximo...", None)
+                trocar_alvo(tentativa + 1)
+            else:
+                raise SyncError(
+                    "Todos os alvos Supabase falharam: " + " | ".join(erros_alvos)
+                ) from erro
+
     log(f"{len(lista)} tabela(s) remota(s) encontrada(s) (modo {modo}).", 0.0)
 
     caminho_backup = None

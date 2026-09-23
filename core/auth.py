@@ -1,8 +1,11 @@
 """
 Autenticação e autorização do SysAVA (SQLite local).
 
-As senhas em `users` são hashes bcrypt. O login aceita o `username` ou o
-    `ra`. Os papéis vêm de `users.role`: `admin`, `teacher` ou `student`.
+As senhas em `app_users` são hashes bcrypt (`password_hash`). Durante a
+transição com o SysAVA Streamlit também é aceito o texto puro da coluna
+`password` (elevado a hash no primeiro login bem-sucedido). O login aceita
+`username` ou `ra`. Os papéis vêm de `app_users.role`: `admin`, `teacher`
+ou `student`.
 """
 
 from __future__ import annotations
@@ -80,15 +83,19 @@ def _buscar(login: str) -> dict | None:
     login = (login or "").strip()
     if not login:
         return None
+    sql = "SELECT * FROM app_users WHERE username = ? OR ra = ? LIMIT 1"
     try:
         with db.abrir() as con:
-            linha = con.execute(
-                "SELECT * FROM users WHERE username = ? OR ra = ? LIMIT 1",
-                (login, login),
-            ).fetchone()
-    except Exception as erro:
-        log.warning("Falha ao consultar users: %s", erro)
-        return None
+            linha = con.execute(sql, (login, login)).fetchone()
+    except Exception:
+        # Banco antigo ainda com `users`: renomeia e tenta de novo.
+        db.garantir_app_users()
+        try:
+            with db.abrir() as con:
+                linha = con.execute(sql, (login, login)).fetchone()
+        except Exception as erro2:
+            log.warning("Falha ao consultar app_users: %s", erro2)
+            return None
     return dict(linha) if linha else None
 
 
@@ -114,6 +121,35 @@ def verificar_senha(senha: str, hash_armazenado: str | None) -> bool:
         return False
 
 
+def _senha_legacy_igual(senha: str, password_legado: str | None) -> bool:
+    """Compara com a senha em texto puro do Streamlit (coluna `password`)."""
+    if not senha or not password_legado:
+        return False
+    return secrets.compare_digest(str(senha), str(password_legado))
+
+
+def _promover_hash(dados: dict, senha: str) -> None:
+    """Grava password_hash a partir do texto legado (best-effort)."""
+    username = dados.get("username")
+    if not username:
+        return
+    try:
+        import bcrypt
+
+        hash_novo = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        with db.abrir(somente_leitura=False) as con:
+            con.execute(
+                "UPDATE app_users SET password_hash = ?, password = '' WHERE username = ?",
+                (hash_novo, username),
+            )
+            con.commit()
+        dados["password_hash"] = hash_novo
+        dados["password"] = ""
+        log.info("Senha de %s elevada para password_hash.", username)
+    except Exception as erro:
+        log.warning("Não foi possível promover senha de %s: %s", username, erro)
+
+
 def esta_ativo(usuario: dict) -> bool:
     """Considera inativo apenas quando `status`/`is_active` dizem isso."""
     status = str(usuario.get("status") or "").strip().lower()
@@ -127,11 +163,19 @@ def esta_ativo(usuario: dict) -> bool:
 
 
 def autenticar(login: str, senha: str) -> dict | None:
-    """Devolve o usuário autenticado (sem senha) ou None."""
+    """Devolve o usuário autenticado (sem senha) ou None.
+
+    Aceita `password_hash` (bcrypt) ou, na transição, `password` legado em
+    texto puro — nesse caso promove para hash no primeiro login.
+    """
     dados = _buscar(login)
     if not dados:
         return None
-    if not verificar_senha(senha, dados.get("password_hash")):
+    ok = verificar_senha(senha, dados.get("password_hash"))
+    if not ok and _senha_legacy_igual(senha, dados.get("password")):
+        ok = True
+        _promover_hash(dados, senha)
+    if not ok:
         return None
     if not esta_ativo(dados):
         return None
@@ -186,12 +230,11 @@ def _push_user_history(username: str, activity: str, timestamp: str) -> None:
     def _enviar():
         try:
             from core import sync
-            cli = sync.cliente()
-            cli.table("user_history").upsert({
+            sync.upsert_filtrado("user_history", [{
                 "username": username,
                 "activity": activity,
                 "timestamp": timestamp,
-            }).execute()
+            }])
         except Exception:
             pass
 

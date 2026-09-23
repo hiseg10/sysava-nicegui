@@ -18,7 +18,7 @@ con.row_factory = sqlite3.Row
 cur = con.cursor()
 
 LEGACY_MAP = {
-    "users": "users", "classes": "classes", "subjects": "subjects",
+    "app_users": "app_users", "classes": "classes", "subjects": "subjects",
     "class_subjects": "class_subjects", "student_enrollments": "student_enrollments",
     "lessons": "lessons", "quizzes": "quizzes", "quiz_questions": "quiz_questions",
     "assessments": "assessments", "assessment_questions": "assessment_questions",
@@ -116,8 +116,8 @@ def clear_remote(table):
 
 print("Iniciando migracao (batch 50, com FKs)...\n")
 
-print("[users]")
-migrate("users", ["username", "name", "ra", "role", "is_active", "password_hash"])
+print("[app_users]")
+migrate("app_users", ["username", "name", "ra", "role", "is_active", "password_hash", "password", "status"])
 
 print("[classes]")
 migrate("classes", ["id", "name", "code", "official_name", "school_id", "tipo_turma", "ano_letivo", "is_active"])

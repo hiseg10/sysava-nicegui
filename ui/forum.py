@@ -20,13 +20,12 @@ def _push_forum_post(username: str, message: str, lesson_id: int | None) -> None
     def _enviar():
         try:
             from core import sync
-            cli = sync.cliente()
-            cli.table("forum_posts").upsert({
+            sync.upsert_filtrado("forum_posts", [{
                 "user_name": username,
                 "message": message,
                 "lesson_id": lesson_id,
                 "created_at": datetime.now().isoformat(),
-            }).execute()
+            }])
         except Exception:
             pass
 
@@ -45,8 +44,9 @@ def _apagar_post(post_id) -> None:
     def _remover_supabase():
         try:
             from core import sync
-            cli = sync.cliente()
-            cli.table("forum_posts").delete().eq("id", post_id).execute()
+            sync.enviar_para_alvos(
+                lambda cli: cli.table("forum_posts").delete().eq("id", post_id).execute()
+            )
         except Exception:
             pass
 

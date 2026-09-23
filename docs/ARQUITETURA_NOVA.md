@@ -219,7 +219,7 @@ psql "postgresql://.../postgres" -f docs/schema_supabase.sql
 ### Passo 2: Migrar dados das tabelas legadas
 ```sql
 -- Exemplo: migrar app_users → users
-INSERT INTO users (username, name, ra, role, is_active, password_hash)
+INSERT INTO app_users (username, name, ra, role, is_active, password_hash)
 SELECT username, name, ra, role, is_active, password FROM app_users;
 ```
 

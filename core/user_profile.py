@@ -128,11 +128,10 @@ def _push_perfil(username: str, dados: dict) -> None:
     def _enviar():
         try:
             from core import sync
-            cli = sync.cliente()
-            cli.table("user_profiles").upsert({
+            sync.upsert_filtrado("user_profiles", [{
                 "username": username,
                 **dados,
-            }).execute()
+            }])
         except Exception:
             pass
 

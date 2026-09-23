@@ -154,7 +154,7 @@ def listar_disciplinas_da_turma(class_id, apenas_ativas: bool = False) -> list[d
 
 def listar_alunos_da_turma(class_id) -> list[dict]:
     return _consultar(
-        "SELECT u.* FROM users u "
+        "SELECT u.* FROM app_users u "
         "JOIN student_enrollments e ON e.user_username = u.username "
         "WHERE e.class_id = ? ORDER BY u.name",
         (str(class_id),),
@@ -166,7 +166,7 @@ def listar_matriculas() -> list[dict]:
 
 
 def obter_aluno(username) -> dict | None:
-    return _consultar_um("SELECT * FROM users WHERE username = ?", (str(username),))
+    return _consultar_um("SELECT * FROM app_users WHERE username = ?", (str(username),))
 
 
 def contexto_aluno(username) -> dict:
@@ -291,9 +291,29 @@ def listar_notas(class_name=None, subject=None, trimester=None) -> list[dict]:
         condicoes.append("trimester = ?")
         parametros.append(int(trimester))
     where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
-    return _consultar(
-        f"SELECT * FROM student_grades {where} ORDER BY student_name", tuple(parametros)
+    # Dual: legado Streamlit usa student_name; NiceGUI usa user_username.
+    colunas = _colunas_tabela("student_grades")
+    if "student_name" in colunas:
+        ordenar = "student_name"
+    elif "user_username" in colunas:
+        ordenar = "user_username"
+    else:
+        ordenar = "id"
+    linhas = _consultar(
+        f"SELECT * FROM student_grades {where} ORDER BY {ordenar}", tuple(parametros)
     )
+    return linhas
+
+
+def _colunas_tabela(tabela: str) -> set[str]:
+    try:
+        with db.abrir() as con:
+            return {
+                linha[1]
+                for linha in con.execute(f'PRAGMA table_info("{tabela}")').fetchall()
+            }
+    except Exception:
+        return set()
 
 
 def listar_pontos_qualitativos(user_username=None) -> list[dict]:
@@ -323,7 +343,7 @@ def obter_setting(chave: str, padrao=None):
 def contagens_gerais() -> dict[str, int]:
     """Contagem de registros das principais tabelas (para dashboards)."""
     tabelas = [
-        "users", "classes", "subjects", "lessons", "quizzes", "quiz_questions",
+        "app_users", "classes", "subjects", "lessons", "quizzes", "quiz_questions",
         "assessments", "assessment_questions", "attendance", "student_enrollments",
         "student_grades", "qualitative_points", "forum_posts",
         "weekly_schedule",

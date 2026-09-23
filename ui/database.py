@@ -8,7 +8,7 @@ from pathlib import Path
 
 from nicegui import ui
 
-from core import db
+from core import db, sync
 from ui import layout
 
 
@@ -144,6 +144,74 @@ def database_page() -> None:
                     _linha("Erro", info["erro"])
 
     card_conexao()
+
+    # --- Banco oficial (Supabase) ---------------------------------------------
+    ui.separator()
+    ui.label("Banco oficial (Supabase)").classes("text-h6")
+
+    def definir_oficial(indice: int) -> None:
+        if sync.trocar_alvo(indice):
+            card_alvos.refresh()
+            ui.notify("Banco oficial alterado com sucesso.", type="positive")
+        else:
+            ui.notify("Alvo inválido.", type="warning")
+
+    def testar_todos_alvos() -> None:
+        resultado = sync.testar_conexao()
+        partes = [
+            f"{a.get('nome')}: {'OK' if a.get('ok') else (a.get('erro') or 'falhou')}"
+            for a in (resultado.get("alvos") or [])
+        ]
+        msg = " · ".join(partes) or resultado.get("erro") or "sem alvos"
+        if resultado.get("ok"):
+            falhou = any(not a.get("ok") for a in (resultado.get("alvos") or []))
+            ui.notify(msg, type="warning" if falhou else "positive")
+        else:
+            ui.notify(f"Falha: {msg}", type="negative")
+
+    @ui.refreshable
+    def card_alvos() -> None:
+        info = sync.descrever_conexao()
+        alvos = info.get("alvos") or []
+        if not alvos:
+            with ui.card().classes("w-full max-w-4xl"):
+                ui.label("Nenhum Supabase configurado. Defina SUPABASE_URL e SUPABASE_KEY no .env.").classes("text-grey-7")
+            return
+
+        with ui.card().classes("w-full max-w-4xl"):
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("database", color="primary").classes("text-2xl")
+                of = sync.alvo_oficial()
+                ui.label(f"Oficial: {of['nome']} — {of['host']}").classes("text-h6")
+
+            for i, alvo in enumerate(alvos):
+                ativo = i == info.get("alvo_ativo")
+                with ui.row().classes("items-center gap-2 w-full"):
+                    ui.icon(
+                        "check_circle" if ativo else "radio_button_unchecked",
+                        color="positive" if ativo else "grey-5",
+                    ).classes("text-xl")
+                    ui.label(alvo.get("nome") or f"alvo{i}").classes("font-medium")
+                    ui.label(alvo.get("host") or "-").classes("text-grey-7")
+                    ui.label(alvo.get("papel") or "").classes("text-caption text-grey-6")
+                    if ativo:
+                        ui.label("(oficial)").classes("text-positive text-caption")
+                    else:
+                        ui.button(
+                            icon="add",
+                            on_click=lambda idx=i: definir_oficial(idx),
+                        ).props("outline dense flat").classes("text-xs") \
+                            .tooltip("Tornar este o banco oficial")
+
+            if info.get("qtd_alvos", 0) < 2:
+                ui.label(
+                    "Redundância: configure SUPABASE2_URL e SUPABASE2_KEY no .env "
+                    "para ter um banco alternativo."
+                ).classes("text-grey-6 text-caption")
+
+    card_alvos()
+    with ui.row().classes("items-center q-gutter-sm"):
+        ui.button("Testar todos", icon="cloud_sync", on_click=testar_todos_alvos).props("outline")
 
     # --- Tabelas ---------------------------------------------------------------
     ui.separator()

@@ -8,21 +8,25 @@
 -- ============================================================
 
 -- ---------------------------------------------------------
--- 1. users (substitui app_users)
+-- 1. app_users (herdeiro do users do NiceGUI / app_users legado)
+--    password_hash: senhas bcrypt do NiceGUI.
+--    password: texto puro do Streamlit (transição; opcional).
 -- ---------------------------------------------------------
-CREATE TABLE IF NOT EXISTS users (
-    username    TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    ra          TEXT DEFAULT '',
-    role        TEXT NOT NULL DEFAULT 'student',
-    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+CREATE TABLE IF NOT EXISTS app_users (
+    username      TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    ra            TEXT DEFAULT '',
+    role          TEXT NOT NULL DEFAULT 'student',
+    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
     password_hash TEXT DEFAULT '',
-    created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TEXT DEFAULT CURRENT_TIMESTAMP
+    password      TEXT DEFAULT '',
+    status        TEXT DEFAULT 'active',
+    created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-CREATE INDEX IF NOT EXISTS idx_users_ra ON users(ra);
+CREATE INDEX IF NOT EXISTS idx_users_role ON app_users(role);
+CREATE INDEX IF NOT EXISTS idx_users_ra ON app_users(ra);
 
 -- ---------------------------------------------------------
 -- 2. classes (substitui classes + schools)
@@ -87,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_class_subjects_subject ON class_subjects(subject_
 CREATE TABLE IF NOT EXISTS student_enrollments (
     id              SERIAL PRIMARY KEY,
     class_id        INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     enrolled_at     TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(class_id, user_username)
 );
@@ -180,7 +184,7 @@ CREATE INDEX IF NOT EXISTS idx_assessment_questions_assessment ON assessment_que
 CREATE TABLE IF NOT EXISTS student_assessments (
     id              SERIAL PRIMARY KEY,
     assessment_id   INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     score           REAL,
     status          TEXT NOT NULL DEFAULT 'pendente',
     submitted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -264,7 +268,7 @@ CREATE INDEX IF NOT EXISTS idx_weekly_schedule_day ON weekly_schedule(day_of_wee
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS user_history (
     id         SERIAL PRIMARY KEY,
-    username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     activity   TEXT NOT NULL,
     timestamp  TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -277,7 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_user_history_timestamp ON user_history(timestamp)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS qualitative_points (
     id          SERIAL PRIMARY KEY,
-    user_username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     subject_id  INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     points      REAL NOT NULL DEFAULT 0,
     notes       TEXT DEFAULT '',
@@ -293,7 +297,7 @@ CREATE INDEX IF NOT EXISTS idx_qualitative_subject ON qualitative_points(subject
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS student_grades (
     id              SERIAL PRIMARY KEY,
-    user_username   TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    user_username   TEXT NOT NULL REFERENCES app_users(username) ON DELETE CASCADE,
     class_name      TEXT NOT NULL,
     subject         TEXT NOT NULL,
     trimester       INTEGER NOT NULL DEFAULT 1,
@@ -349,7 +353,7 @@ GROUP BY class_name, subject_id, student_name;
 -- Habilitar RLS em todas as tabelas para segurança
 -- Executar no painel do Supabase ou via SQL:
 --
--- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE class_subjects ENABLE ROW LEVEL SECURITY;

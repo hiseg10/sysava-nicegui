@@ -307,7 +307,7 @@ sequenceDiagram
 
     U->>UI: Login (username + senha)
     UI->>AUTH: autenticar(username, senha)
-    AUTH->>DB: SELECT * FROM users
+    AUTH->>DB: SELECT * FROM app_users
     DB-->>AUTH: Usuário
     AUTH->>AUTH: bcrypt.checkpw()
 

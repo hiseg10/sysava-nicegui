@@ -94,8 +94,9 @@ def _sync_inicial():
         banco_cheio = False
         try:
             from core import db
+            db.garantir_app_users()
             with db.abrir() as con:
-                total = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+                total = con.execute("SELECT COUNT(*) FROM app_users").fetchone()[0]
                 banco_cheio = total > 0
         except Exception:
             pass  # tabela não existe ou banco vazio
@@ -220,7 +221,7 @@ def dashboard():
         .classes("w-full max-w-3xl q-mt-md").props("dense flat bordered")
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     local = sync.eh_local()
     ui.run(
         port=int(os.environ.get("PORT", 8080)),

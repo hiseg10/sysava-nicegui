@@ -8,7 +8,7 @@ from datetime import date
 
 from nicegui import ui
 
-from core import attendance
+from core import attendance, auth
 from ui import layout, security
 
 
@@ -63,8 +63,12 @@ def frequencia_page() -> None:
             estado["turma_nome"], disciplina_id, estado["data"]
         )
         estado["alunos"] = alunos
+        # Alunos inativos (lista negra em users.is_active) já entram como Falta.
         estado["status"] = {
-            aluno["name"]: chamada.get(aluno["name"], attendance.STATUS_PRESENTE)
+            aluno["name"]: chamada.get(
+                aluno["name"],
+                attendance.STATUS_FALTA if not auth.esta_ativo(aluno) else attendance.STATUS_PRESENTE,
+            )
             for aluno in alunos
         }
         painel_chamada.refresh()
@@ -117,7 +121,18 @@ def frequencia_page() -> None:
                 "Marcar todos presentes",
                 icon="done_all",
                 on_click=lambda: (
-                    [estado["status"].update({a["name"]: attendance.STATUS_PRESENTE}) for a in alunos],
+                    [
+                        estado["status"].update(
+                            {
+                                a["name"]: (
+                                    attendance.STATUS_FALTA
+                                    if not auth.esta_ativo(a)
+                                    else attendance.STATUS_PRESENTE
+                                )
+                            }
+                        )
+                        for a in alunos
+                    ],
                     painel_chamada.refresh(),
                     painel_resumo.refresh(),
                 ),
@@ -131,6 +146,8 @@ def frequencia_page() -> None:
                 ):
                     ui.label(str(indice)).classes("w-8 text-right text-grey-7")
                     ui.label(nome).classes("flex-1")
+                    if not auth.esta_ativo(aluno):
+                        ui.label("inativo").classes("text-caption text-negative")
                     ui.select(
                         list(attendance.STATUS),
                         value=estado["status"].get(nome, attendance.STATUS_PRESENTE),
@@ -143,14 +160,22 @@ def frequencia_page() -> None:
         if not (estado["turma_nome"] and estado["disciplina_id"]):
             ui.notify("Selecione turma e disciplina.", type="warning")
             return
-        registros = [
-            {
-                "student_name": aluno["name"],
-                "student_number": indice,
-                "status": estado["status"].get(aluno["name"], attendance.STATUS_PRESENTE),
-            }
-            for indice, aluno in enumerate(estado["alunos"], start=1)
-        ]
+        registros = []
+        for indice, aluno in enumerate(estado["alunos"], start=1):
+            nome = aluno["name"]
+            # Lista negra (inativo) sempre grava Falta, independentemente do select.
+            if not auth.esta_ativo(aluno):
+                status = attendance.STATUS_FALTA
+                estado["status"][nome] = status
+            else:
+                status = estado["status"].get(nome, attendance.STATUS_PRESENTE)
+            registros.append(
+                {
+                    "student_name": nome,
+                    "student_number": indice,
+                    "status": status,
+                }
+            )
         usuario = security.usuario_atual() or {}
         resultado = attendance.salvar_chamada(
             estado["turma_nome"],

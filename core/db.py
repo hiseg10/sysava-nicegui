@@ -48,6 +48,33 @@ def restaurar_padrao() -> Path:
     return definir_caminho(DB_PADRAO)
 
 
+def garantir_app_users() -> None:
+    """Renomeia `users` → `app_users` se necessário (herança Streamlit)."""
+    try:
+        with abrir(somente_leitura=False) as con:
+            tem_users = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'"
+            ).fetchone()
+            tem_app = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_users'"
+            ).fetchone()
+            if tem_users and not tem_app:
+                con.execute("ALTER TABLE users RENAME TO app_users")
+                tem_app = True
+            if tem_app:
+                for sql in (
+                    "ALTER TABLE app_users ADD COLUMN password TEXT DEFAULT ''",
+                    "ALTER TABLE app_users ADD COLUMN status TEXT DEFAULT 'active'",
+                ):
+                    try:
+                        con.execute(sql)
+                    except Exception:
+                        pass  # coluna já existe
+                con.commit()
+    except Exception:
+        pass
+
+
 # --------------------------------------------------------------------------
 # Conexão
 # --------------------------------------------------------------------------

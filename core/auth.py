@@ -128,24 +128,43 @@ def _senha_legacy_igual(senha: str, password_legado: str | None) -> bool:
     return secrets.compare_digest(str(senha), str(password_legado))
 
 
-def _promover_hash(dados: dict, senha: str) -> None:
-    """Grava password_hash a partir do texto legado (best-effort)."""
+def _promover_hash(dados: dict, senha: str | None = None, hash_novo: str | None = None) -> None:
+    """Grava `password_hash` (best-effort).
+
+    - `hash_novo` informado (origem já era bcrypt): espelha o hash sem tocar em `password`.
+    - `senha` informada (origem texto puro): grava bcrypt em `password_hash` **e** em
+      `password` — nunca apaga a senha, para o Streamlit legado continuar funcionando.
+    """
     username = dados.get("username")
     if not username:
         return
     try:
-        import bcrypt
+        if hash_novo is None:
+            if not senha:
+                return
+            import bcrypt
 
-        hash_novo = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            hash_novo = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            reescrever_password = True
+        else:
+            # Origem já era bcrypt: só espelha; mantém `password` como está.
+            reescrever_password = not _eh_hash_bcrypt(str(dados.get("password") or ""))
         with db.abrir(somente_leitura=False) as con:
-            con.execute(
-                "UPDATE app_users SET password_hash = ?, password = '' WHERE username = ?",
-                (hash_novo, username),
-            )
+            if reescrever_password:
+                con.execute(
+                    "UPDATE app_users SET password_hash = ?, password = ? WHERE username = ?",
+                    (hash_novo, hash_novo, username),
+                )
+            else:
+                con.execute(
+                    "UPDATE app_users SET password_hash = ? WHERE username = ?",
+                    (hash_novo, username),
+                )
             con.commit()
         dados["password_hash"] = hash_novo
-        dados["password"] = ""
-        log.info("Senha de %s elevada para password_hash.", username)
+        if reescrever_password:
+            dados["password"] = hash_novo
+        log.info("Senha de %s gravada em password_hash.", username)
     except Exception as erro:
         log.warning("Não foi possível promover senha de %s: %s", username, erro)
 
@@ -162,21 +181,42 @@ def esta_ativo(usuario: dict) -> bool:
     return True
 
 
+def _eh_hash_bcrypt(texto: str) -> bool:
+    """Verifica se um texto parece um hash bcrypt (começa com $2a, $2b, $2y ou $2p)."""
+    return bool(texto and isinstance(texto, str) and texto.startswith(("$2a", "$2b", "$2y", "$2p")))
+
 def autenticar(login: str, senha: str) -> dict | None:
     """Devolve o usuário autenticado (sem senha) ou None.
 
-    Aceita `password_hash` (bcrypt) ou, na transição, `password` legado em
-    texto puro — nesse caso promove para hash no primeiro login.
+    Compatibilidade com os layouts de `app_users`:
+    - `password_hash` com bcrypt (Supabase principal / NiceGUI canônico);
+    - `password` com bcrypt (Supabase 2 do Streamlit / SQLite local legado);
+    - `password` em texto puro (seeds antigos) — promove para bcrypt nos dois
+      campos no primeiro login.
     """
     dados = _buscar(login)
     if not dados:
         return None
-    ok = verificar_senha(senha, dados.get("password_hash"))
-    if not ok and _senha_legacy_igual(senha, dados.get("password")):
-        ok = True
-        _promover_hash(dados, senha)
-    if not ok:
-        return None
+
+    senha_hash = None
+    ph = dados.get("password_hash")
+    if _eh_hash_bcrypt(ph):
+        senha_hash = ph
+    elif _eh_hash_bcrypt(dados.get("password")):
+        senha_hash = dados.get("password")
+
+    if senha_hash is not None:
+        if not verificar_senha(senha, senha_hash):
+            return None
+        # Cura de dados: espelha o hash em password_hash sem apagar password.
+        if not dados.get("password_hash"):
+            _promover_hash(dados, hash_novo=senha_hash)
+    else:
+        # Transição: senha legada em texto puro (Streamlit/seeds).
+        if not _senha_legacy_igual(senha, dados.get("password")):
+            return None
+        _promover_hash(dados, senha=senha)
+
     if not esta_ativo(dados):
         return None
     dados.pop("password_hash", None)

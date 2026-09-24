@@ -63,6 +63,7 @@ def garantir_app_users() -> None:
                 tem_app = True
             if tem_app:
                 for sql in (
+                    "ALTER TABLE app_users ADD COLUMN password_hash TEXT DEFAULT ''",
                     "ALTER TABLE app_users ADD COLUMN password TEXT DEFAULT ''",
                     "ALTER TABLE app_users ADD COLUMN status TEXT DEFAULT 'active'",
                 ):

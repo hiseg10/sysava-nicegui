@@ -16,7 +16,9 @@ def show_page():
 
                 user_data = db.get_user(user)
                 if user_data:
-                    if auth.check_password(password, user_data['password']):
+                    if auth.check_password_any(
+                        password, user_data.get('password'), user_data.get('password_hash')
+                    ):
                         st.session_state['logado'] = True
                         st.session_state['usuario'] = user_data.get('name', user)
                         # Armazena o username (RA) para consultas de matrícula

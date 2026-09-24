@@ -10,7 +10,21 @@ def hash_password(password: str) -> str:
 
 def check_password(password: str, hashed_password: str) -> bool:
     """Verifica se a senha fornecida corresponde ao hash armazenado."""
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    if not password or not hashed_password:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except ValueError:
+        # Coluna ainda em texto puro (seeds antigos).
+        import secrets
+        return secrets.compare_digest(password, str(hashed_password))
+
+def check_password_any(password: str, *candidates) -> bool:
+    """Tenta validar contra `password` e `password_hash` (qualquer ordem)."""
+    for valor in candidates:
+        if valor and check_password(password, valor):
+            return True
+    return False
 
 # --- Gerenciamento de Sessão ---
 @st.cache_resource

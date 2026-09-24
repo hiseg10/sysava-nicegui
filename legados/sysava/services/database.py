@@ -40,7 +40,7 @@ def check_db_structure():
 # --- Funções de Usuário ---
 def get_user(username: str):
     if not is_db_connected(): return None
-    response = supabase.table("app_users").select("username, password, name, role").eq("username", username).execute()
+    response = supabase.table("app_users").select("username, password, password_hash, name, role").eq("username", username).execute()
     return response.data[0] if response.data else None
 
 def get_all_users():

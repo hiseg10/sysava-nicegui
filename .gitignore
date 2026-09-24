@@ -39,3 +39,6 @@ Thumbs.db
 # OpenCode config
 .opencode/
 Tasks/
+
+# Legado Streamlit (será excluído ao final do desenvolvimento)
+legados/

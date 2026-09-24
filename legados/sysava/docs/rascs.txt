@@ -544,7 +544,7 @@ Para executar, você precisará copiar os seguintes arquivos para a pasta '.\dis
   - A pasta '.streamlit' (contendo o arquivo 'secrets.toml').
 
 Conta Institucional
-GEMINI_API_KEY="AIzaSyDcT_yHqdLnVOWIS3gMDMXoMGqEsUicLEk"
+GEMINI_API_KEY="COLE_AQUI_NOVA_CHAVE"
 
 import google.generativeai as genai
 🔍 Listando modelos disponíveis para sua chave de API...

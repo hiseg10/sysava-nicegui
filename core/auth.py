@@ -196,6 +196,7 @@ def autenticar(login: str, senha: str) -> dict | None:
     """
     dados = _buscar(login)
     if not dados:
+        log.info("Login recusado (%r): usuário/RA inexistente.", login)
         return None
 
     senha_hash = None
@@ -207,6 +208,11 @@ def autenticar(login: str, senha: str) -> dict | None:
 
     if senha_hash is not None:
         if not verificar_senha(senha, senha_hash):
+            log.warning(
+                "Login recusado (%r): senha incorreta (hash em %s).",
+                login,
+                "password_hash" if _eh_hash_bcrypt(ph) else "password",
+            )
             return None
         # Cura de dados: espelha o hash em password_hash sem apagar password.
         if not dados.get("password_hash"):
@@ -214,10 +220,12 @@ def autenticar(login: str, senha: str) -> dict | None:
     else:
         # Transição: senha legada em texto puro (Streamlit/seeds).
         if not _senha_legacy_igual(senha, dados.get("password")):
+            log.warning("Login recusado (%r): nenhum hash bcrypt válido e senha texto puro não confere.", login)
             return None
         _promover_hash(dados, senha=senha)
 
     if not esta_ativo(dados):
+        log.info("Login recusado (%r): conta inativa.", login)
         return None
     dados.pop("password_hash", None)
     dados.pop("password", None)

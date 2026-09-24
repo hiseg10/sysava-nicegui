@@ -49,6 +49,8 @@ def configurar() -> None:
         raiz.addHandler(console)
 
     logging.getLogger("nicegui").setLevel(logging.WARNING)
+    # Evita o loop "N change detected" -> grava no sysava.log -> nova detecção.
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
     _configurado = True
 
 

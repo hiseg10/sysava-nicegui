@@ -30,6 +30,9 @@ from ui import login as login_view
 from ui import manage_turmas as manage_turmas_view
 from ui import pontos as pontos_view
 from ui import perfil as perfil_view
+from ui import portal_notas as portal_notas_view
+from ui import portal_planejar as portal_planejar_view
+from ui import portal_registrar as portal_registrar_view
 from ui import provas as provas_view
 from ui import quiz as quiz_view
 from ui import sync as sync_view
@@ -46,6 +49,9 @@ _ = (
     manage_turmas_view,
     pontos_view,
     perfil_view,
+    portal_notas_view,
+    portal_planejar_view,
+    portal_registrar_view,
     provas_view,
     quiz_view,
     sync_view,
@@ -227,6 +233,8 @@ if __name__ in {"__main__", "__mp_main__"}:
         port=int(os.environ.get("PORT", 8080)),
         host="0.0.0.0",
         reload=local,
+        reload_delay=2.0,
+        uvicorn_reload_excludes=".*, .py[cod], .sw.*, ~*, data, backups",
         storage_secret=auth.storage_secret(),
         title="SysAVA",
     )
